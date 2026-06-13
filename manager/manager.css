@@ -308,6 +308,16 @@ html, body {
   border-bottom-color: rgba(139, 53, 214, 0.3);
 }
 
+/* All tabs in window selected */
+.window-header.win-all-selected {
+  background: rgba(26, 115, 232, 0.18);
+  border-bottom-color: rgba(26, 115, 232, 0.35);
+}
+.window-header.private.win-all-selected {
+  background: rgba(120, 40, 220, 0.3);
+  border-bottom-color: rgba(139, 53, 214, 0.5);
+}
+
 .window-header-icon { width: 14px; height: 14px; color: var(--text-sec); flex-shrink: 0; }
 
 /* Clickable select-all area (everything but arrow) */
@@ -437,6 +447,24 @@ html, body {
   color: var(--text-dim);
   flex-shrink: 0;
 }
+
+.tab-open-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 3px 4px;
+  border-radius: 3px;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s, background 0.1s;
+}
+.tab-open-btn svg { width: 13px; height: 13px; }
+.tab-row:hover .tab-open-btn,
+.tab-row.selected .tab-open-btn { opacity: 1; }
+.tab-open-btn:hover { color: var(--accent); background: rgba(26,115,232,0.12); }
 
 /* ─── Selection bar ─────────────────────────────────────────────────────── */
 .selection-bar {

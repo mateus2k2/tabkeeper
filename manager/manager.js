@@ -361,6 +361,19 @@ function updateSelectionBar() {
     saveBtn.style.display    = "";
     saveBtn.textContent      = isCurrent ? "Save selected" : "Extract to collection";
   }
+
+  // Highlight window headers where every tab is selected
+  const winKeys = {};
+  for (const { key } of state.tabRenderOrder) {
+    const wi = key.split(":")[0];
+    if (!winKeys[wi]) winKeys[wi] = [];
+    winKeys[wi].push(key);
+  }
+  document.querySelectorAll(".window-block[data-win-idx]").forEach(block => {
+    const keys = winKeys[block.dataset.winIdx] || [];
+    const allSel = keys.length > 0 && keys.every(k => state.selectedTabKeys.has(k));
+    block.querySelector(".window-header").classList.toggle("win-all-selected", allSel);
+  });
 }
 
 function updateSidebarSelBar() {
@@ -924,6 +937,27 @@ function buildTabRow(tab, groupColor, query, key, selectable) {
     badge.className = "tab-pin-badge";
     badge.textContent = "📌";
     row.appendChild(badge);
+  }
+
+  // Open button — focuses the live tab (current view) or opens URL in a new tab
+  if (tab.url && tab.url !== "about:newtab" && tab.url !== "about:blank") {
+    const openTabBtn = document.createElement("button");
+    openTabBtn.className = "tab-open-btn";
+    openTabBtn.title = "Open tab";
+    openTabBtn.innerHTML = `<svg viewBox="0 0 16 16" fill="none">
+      <path d="M7 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+      <path d="M10 2h4v4M14 2l-6 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+    openTabBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (state.view === "current" && tab.id) {
+        await browser.tabs.update(tab.id, { active: true });
+        if (tab.windowId) await browser.windows.update(tab.windowId, { focused: true });
+      } else {
+        await browser.tabs.create({ url: tab.url });
+      }
+    });
+    row.appendChild(openTabBtn);
   }
 
   if (selectable) {
