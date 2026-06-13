@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Session Buddy</title>
+  <link rel="icon" type="image/svg+xml" href="../icons/icon-48.svg" />
+  <link rel="stylesheet" href="manager.css" />
+</head>
+<body>
+
+<!-- TOP BAR -->
+<header class="topbar">
+  <div class="topbar-logo">
+    <svg class="logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="32" height="32" rx="6" fill="#1a73e8"/>
+      <text x="16" y="23" font-family="Arial,sans-serif" font-size="20" font-weight="bold" fill="white" text-anchor="middle">S</text>
+    </svg>
+  </div>
+  <div class="topbar-search">
+    <svg class="search-icon" viewBox="0 0 20 20" fill="none"><circle cx="8.5" cy="8.5" r="5.5" stroke="#aaa" stroke-width="1.8"/><line x1="12.5" y1="12.5" x2="17" y2="17" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <input id="search-input" type="text" placeholder="Search tabs and collections" autocomplete="off" />
+  </div>
+  <div class="topbar-actions">
+    <button id="btn-settings" class="icon-btn" title="Settings">
+      <svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" stroke="#ccc" stroke-width="1.8"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2M3.22 3.22l1.41 1.41M15.36 15.36l1.41 1.41M3.22 16.78l1.41-1.41M15.36 4.64l1.41-1.41" stroke="#ccc" stroke-width="1.8" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="app-body">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <section class="sidebar-section">
+      <div class="sidebar-label">TABS</div>
+      <div id="sidebar-history" class="sidebar-item" data-view="history">
+        <svg class="sidebar-item-icon" viewBox="0 0 20 20" fill="none">
+          <circle cx="10" cy="10" r="8" stroke="#9a9a9a" stroke-width="1.8"/>
+          <polyline points="10,5 10,10 14,13" stroke="#9a9a9a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div class="sidebar-item-text">
+          <div class="sidebar-item-title">History</div>
+          <div class="sidebar-item-sub" id="history-sidebar-sub">— entries</div>
+        </div>
+      </div>
+      <div id="sidebar-current" class="sidebar-item active" data-view="current">
+        <svg class="sidebar-item-icon" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="#e8a020" stroke-width="1.8"/><line x1="10" y1="2" x2="10" y2="18" stroke="#e8a020" stroke-width="1.4"/><path d="M2 10 Q6 6 10 10 Q14 14 18 10" stroke="#e8a020" stroke-width="1.4" fill="none"/></svg>
+        <div class="sidebar-item-text">
+          <div class="sidebar-item-title">This browser</div>
+          <div class="sidebar-item-sub" id="current-tab-count">— tabs</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="sidebar-section">
+      <div class="sidebar-label">COOKIES</div>
+      <div id="sidebar-cookies" class="sidebar-item" data-view="cookies">
+        <svg class="sidebar-item-icon" viewBox="0 0 20 20" fill="none">
+          <circle cx="10" cy="10" r="8" stroke="#9a6dd7" stroke-width="1.8"/>
+          <circle cx="7"  cy="8"  r="1.2" fill="#9a6dd7"/>
+          <circle cx="13" cy="8"  r="1.2" fill="#9a6dd7"/>
+          <circle cx="10" cy="13" r="1.2" fill="#9a6dd7"/>
+          <circle cx="7"  cy="13" r="0.8" fill="#9a6dd7"/>
+          <circle cx="13" cy="13" r="0.8" fill="#9a6dd7"/>
+        </svg>
+        <div class="sidebar-item-text">
+          <div class="sidebar-item-title">Private window</div>
+          <div class="sidebar-item-sub" id="cookie-sidebar-sub">— cookies</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="sidebar-section">
+      <div class="sidebar-label">COLLECTIONS</div>
+      <div id="sessions-list" class="sessions-nav">
+        <!-- dynamically populated -->
+      </div>
+      <div id="no-collections" class="no-collections">
+        <svg viewBox="0 0 40 40" fill="none"><rect x="6" y="8" width="28" height="24" rx="3" stroke="#555" stroke-width="1.5"/><line x1="13" y1="14" x2="27" y2="14" stroke="#555" stroke-width="1.5"/><line x1="13" y1="20" x2="22" y2="20" stroke="#555" stroke-width="1.5"/></svg>
+        <div class="no-collections-title">No collections</div>
+        <div class="no-collections-sub">Save tabs to create a collection</div>
+      </div>
+      <div id="sidebar-sel-bar" class="sidebar-sel-bar hidden">
+        <span class="sidebar-sel-count" id="sidebar-sel-count"></span>
+        <button class="sidebar-sel-del" id="sidebar-sel-del">Delete</button>
+      </div>
+    </section>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+    <!-- Content header bar -->
+    <div class="content-header">
+      <div class="content-header-info">
+        <div class="content-header-title" id="content-title">This browser</div>
+        <div class="content-header-sub" id="content-sub"></div>
+      </div>
+      <div class="content-header-buttons" id="content-actions">
+        <!-- Populated dynamically per view -->
+      </div>
+    </div>
+
+    <!-- Windows / tabs area -->
+    <div id="content-area" class="content-area">
+      <!-- Populated dynamically -->
+    </div>
+  </main>
+
+</div>
+
+<!-- MODALS -->
+<div id="modal-overlay" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">Save Session</div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+
+<!-- SELECTION BAR (tab selection) -->
+<div id="selection-bar" class="selection-bar hidden">
+  <span class="sel-count" id="sel-count"></span>
+  <button class="sel-btn sel-save" id="sel-save" style="display:none">Save selected</button>
+  <button class="sel-btn sel-remove" id="sel-remove" style="display:none">Remove from session</button>
+  <button class="sel-btn" id="sel-open" style="display:none">Open tabs</button>
+  <button class="sel-btn" id="sel-copy">Copy URLs</button>
+  <button class="sel-btn sel-clear" id="sel-clear">Clear</button>
+</div>
+
+<!-- NOTIFICATION TOAST -->
+<div id="toast" class="toast hidden"></div>
+
+<!-- Hidden file inputs for import -->
+<input type="file" id="import-json-input"    accept=".json,application/json" style="display:none" />
+<input type="file" id="import-text-input"   accept=".txt,text/plain"        style="display:none" />
+<input type="file" id="import-cookie-input" accept=".json,application/json" style="display:none" />
+
+<script src="manager.js"></script>
+</body>
+</html>

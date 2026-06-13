@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Session Buddy",
+  "description": "Manage browser sessions - save, restore, and organize your tabs and tab groups.",
+  "version": "1.0.0",
+  "author": "mateus2k2",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "session-buddy@mateusfilipe2k2",
+      "strict_min_version": "109.0"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.svg",
+    "48": "icons/icon-48.svg",
+    "128": "icons/icon-128.svg"
+  },
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "action": {
+    "default_icon": {
+      "16": "icons/icon-16.svg",
+      "48": "icons/icon-48.svg",
+      "128": "icons/icon-128.svg"
+    },
+    "default_title": "Session Buddy"
+  },
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "tabs",
+    "downloads",
+    "alarms",
+    "tabGroups",
+    "cookies"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ]
+}
