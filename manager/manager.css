@@ -597,7 +597,7 @@ mark { background: rgba(255,200,0,0.2); color: inherit; border-radius: 2px; padd
 
 .history-entry-dot {
   position: absolute;
-  left: -26px;
+  left: -28px;
   top: 15px;
   width: 12px;
   height: 12px;
