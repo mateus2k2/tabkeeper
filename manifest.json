@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Session Buddy",
-  "description": "Manage browser sessions - save, restore, and organize your tabs and tab groups.",
-  "version": "1.5.0",
+  "name": "TabKeeper",
+  "description": "Save, restore, and organize your browser sessions, tab groups, and history.",
+  "version": "1.6.1",
   "author": "mateus2k2",
   "browser_specific_settings": {
     "gecko": {
@@ -24,7 +24,7 @@
       "48": "icons/icon-48.svg",
       "128": "icons/icon-128.svg"
     },
-    "default_title": "Session Buddy"
+    "default_title": "TabKeeper"
   },
   "permissions": [
     "storage",

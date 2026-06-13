@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Session Buddy</title>
+  <title>TabKeeper</title>
   <link rel="icon" type="image/svg+xml" href="../icons/icon-48.svg" />
   <link rel="stylesheet" href="manager.css" />
 </head>
@@ -11,6 +11,9 @@
 
 <!-- TOP BAR -->
 <header class="topbar">
+  <button id="btn-sidebar-toggle" class="icon-btn sidebar-toggle-btn" title="Toggle sidebar" aria-label="Toggle sidebar">
+    <svg viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="2" rx="1" fill="#fff"/><rect x="2" y="9" width="16" height="2" rx="1" fill="#fff"/><rect x="2" y="14" width="16" height="2" rx="1" fill="#fff"/></svg>
+  </button>
   <div class="topbar-logo">
     <svg class="logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
       <rect width="32" height="32" rx="6" fill="#1a73e8"/>
@@ -108,6 +111,9 @@
   </main>
 
 </div>
+
+<!-- SIDEBAR OVERLAY (mobile) -->
+<div id="sidebar-overlay" class="sidebar-overlay"></div>
 
 <!-- MODALS -->
 <div id="modal-overlay" class="modal-overlay hidden">

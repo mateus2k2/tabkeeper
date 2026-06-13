@@ -752,3 +752,73 @@ mark { background: rgba(255,200,0,0.2); color: inherit; border-radius: 2px; padd
 }
 .cookie-item:last-child { border-bottom: none; }
 .cookie-item:hover { background: var(--bg-hover); color: var(--text-pri); }
+
+/* ─── Sidebar toggle button ───────────────────────────────────────────────── */
+/* Hidden on wide screens — only shown when sidebar can collapse */
+.sidebar-toggle-btn { display: none; flex-shrink: 0; }
+
+/* ─── Sidebar overlay (mobile) ────────────────────────────────────────────── */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 149;
+}
+.sidebar-open .sidebar-overlay { display: block; }
+
+/* ─── Responsive breakpoint ───────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  /* Show hamburger button */
+  .sidebar-toggle-btn { display: flex; }
+
+  /* Sidebar slides in as an overlay */
+  .sidebar {
+    position: fixed;
+    top: var(--topbar-h);
+    left: 0;
+    bottom: 0;
+    z-index: 150;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: none;
+  }
+  .sidebar-open .sidebar {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+  }
+
+  /* Main content takes full width */
+  .main-content { width: 100%; }
+
+  /* Selection bar spans full width (sidebar is overlaid, not in flow) */
+  .selection-bar { left: 0; flex-wrap: wrap; height: auto; min-height: 52px; padding: 8px 12px; gap: 6px; }
+  .sel-count { flex: 0 0 100%; font-size: 11px; }
+  .sel-btn { font-size: 11px; padding: 5px 10px; }
+
+  /* Content header: stack title and buttons */
+  .content-header { padding: 12px 14px 10px; flex-wrap: wrap; gap: 8px; }
+  .content-header-buttons { width: 100%; flex-wrap: wrap; }
+  .content-header-title { font-size: 15px; }
+
+  /* Content area: less horizontal padding */
+  .content-area { padding: 12px 12px 90px; }
+
+  /* Tab rows: hide URL on very small screens, reduce padding */
+  .tab-url { display: none; }
+  .tab-row { padding: 6px 10px; gap: 8px; }
+
+  /* Window header: tighter */
+  .window-header { padding: 8px 10px; }
+
+  /* Topbar search shrinks gracefully */
+  .topbar-search { max-width: none; }
+
+  /* Modal full-width */
+  .modal { min-width: 0; width: 95%; padding: 18px 16px; }
+
+  /* History timeline: less left indent */
+  .history-timeline { padding-left: 24px; }
+  .history-entry-dot { left: -20px; }
+  .history-timeline::before { left: 6px; }
+}

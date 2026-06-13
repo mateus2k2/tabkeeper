@@ -668,6 +668,7 @@ function renderSidebar() {
           clearSidebarSelection();
           state.lastSessionId = session.id;
           selectView(session.id);
+          closeSidebarIfMobile();
         }
       });
 
@@ -1207,6 +1208,27 @@ function toast(msg) {
   toastTimer = setTimeout(() => el.classList.add("hidden"), 2500);
 }
 
+// ─── Sidebar toggle (mobile) ──────────────────────────────────────────────────
+
+function closeSidebarIfMobile() {
+  if (window.innerWidth <= 700) document.body.classList.remove("sidebar-open");
+}
+
+document.getElementById("btn-sidebar-toggle").addEventListener("click", () => {
+  document.body.classList.toggle("sidebar-open");
+});
+
+document.getElementById("sidebar-overlay").addEventListener("click", () => {
+  document.body.classList.remove("sidebar-open");
+});
+
+// Auto-close sidebar on mobile when navigating to a view
+const _origSelectView = selectView;
+// patch: close sidebar when user picks an item on narrow screen
+document.getElementById("sidebar-current").addEventListener("click", closeSidebarIfMobile, true);
+document.getElementById("sidebar-history").addEventListener("click", closeSidebarIfMobile, true);
+document.getElementById("sidebar-cookies").addEventListener("click", closeSidebarIfMobile, true);
+
 // ─── Search ───────────────────────────────────────────────────────────────────
 
 document.getElementById("search-input").addEventListener("input", (e) => {
@@ -1589,7 +1611,7 @@ async function renderCookieView() {
   if (!incogAllowed) {
     const warn = document.createElement("div");
     warn.className = "cookie-warning";
-    warn.innerHTML = `<strong>Private window access disabled</strong>Go to Firefox → Add-ons → Session Buddy → Allow in private windows to use this feature.`;
+    warn.innerHTML = `<strong>Private window access disabled</strong>Go to Firefox → Add-ons → TabKeeper → Allow in private windows to use this feature.`;
     area.appendChild(warn);
     return;
   }
