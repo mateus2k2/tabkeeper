@@ -1211,7 +1211,13 @@ function makeDropdownButton(label, items, cls = "btn-ghost") {
     e.stopPropagation();
     const wasOpen = menu.classList.contains("open");
     closeAllDropdowns();
-    if (!wasOpen) menu.classList.add("open");
+    if (!wasOpen) {
+      menu.classList.remove("align-left", "flip-up");
+      menu.classList.add("open");
+      const rect = menu.getBoundingClientRect();
+      if (rect.left < 0) menu.classList.add("align-left");
+      if (rect.bottom > window.innerHeight) menu.classList.add("flip-up");
+    }
   });
 
   wrapper.appendChild(btn);

@@ -260,6 +260,8 @@ html, body {
   display: none;
 }
 .dropdown-menu.open { display: block; }
+.dropdown-menu.open.align-left { right: auto; left: 0; }
+.dropdown-menu.open.flip-up { top: auto; bottom: calc(100% + 4px); }
 
 .dropdown-item {
   padding: 8px 16px;

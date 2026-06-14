@@ -123,6 +123,8 @@ const tabGroupsEnabled = typeof browser !== "undefined" &&
   browser.tabGroups !== undefined &&
   typeof browser.tabs?.group === "function";
 
+const windowsSupported = typeof browser !== "undefined" && browser.windows !== undefined;
+
 async function queryTabGroups(windowId) {
   if (!tabGroupsEnabled) return [];
   try {
@@ -213,7 +215,9 @@ async function captureCurrentSession(name, scope = "all", { fetchFavicons = true
   // Collect window metadata + tab groups
   const windows = [];
   for (const wid of windowIds) {
-    const winInfo = await browser.windows.get(wid);
+    const winInfo = windowsSupported
+      ? await browser.windows.get(wid)
+      : { state: "normal", width: 0, height: 0, top: 0, left: 0, incognito: false };
     const tabGroups = await queryTabGroups(wid);
 
     // Build a lookup by string key to avoid any int/string type mismatch
@@ -302,24 +306,31 @@ async function openSession(session, mode = "newWindow") {
       await createTabsInWindow(win, targetWindowId, true);
       await browser.tabs.remove(keepTabId);
     } else {
-      const createData = {};
-      if (win.incognito) createData.incognito = true;
-      let newWin;
-      try {
-        newWin = await browser.windows.create(createData);
-      } catch (e) {
-        if (win.incognito) {
-          // Extension not allowed in private browsing — open as normal window
-          console.warn("[session-buddy] Private window creation failed. Enable extension in private browsing.", e);
-          newWin = await browser.windows.create({});
-        } else {
-          throw e;
+      if (!windowsSupported) {
+        // Android: no multi-window support — open tabs in the current window
+        const existingTabs = await browser.tabs.query({ active: true, currentWindow: true });
+        targetWindowId = existingTabs[0]?.windowId ?? browser.windows?.WINDOW_ID_CURRENT;
+        await createTabsInWindow(win, targetWindowId, false);
+      } else {
+        const createData = {};
+        if (win.incognito) createData.incognito = true;
+        let newWin;
+        try {
+          newWin = await browser.windows.create(createData);
+        } catch (e) {
+          if (win.incognito) {
+            // Extension not allowed in private browsing — open as normal window
+            console.warn("[session-buddy] Private window creation failed. Enable extension in private browsing.", e);
+            newWin = await browser.windows.create({});
+          } else {
+            throw e;
+          }
         }
+        targetWindowId = newWin.id;
+        const blankTab = newWin.tabs[0];
+        await createTabsInWindow(win, targetWindowId, false);
+        await browser.tabs.remove(blankTab.id);
       }
-      targetWindowId = newWin.id;
-      const blankTab = newWin.tabs[0];
-      await createTabsInWindow(win, targetWindowId, false);
-      await browser.tabs.remove(blankTab.id);
     }
   }
 }
@@ -574,11 +585,13 @@ browser.runtime.onMessage.addListener((request, sender) => {
       }
 
       case "getRecentlyClosed": {
+        if (!browser.sessions) return [];
         const closed = await browser.sessions.getRecentlyClosed({ maxResults: 25 });
         return closed;
       }
 
       case "restoreClosedSession": {
+        if (!browser.sessions) return { ok: false };
         await browser.sessions.restore(request.sessionId);
         return { ok: true };
       }
@@ -638,10 +651,10 @@ async function commitHistory(type) {
 browser.tabs.onCreated.addListener(scheduleSnapshot);
 browser.tabs.onRemoved.addListener(scheduleSnapshot);
 browser.tabs.onUpdated.addListener(scheduleSnapshot);
-browser.windows.onCreated.addListener(scheduleSnapshot);
+if (windowsSupported) browser.windows.onCreated.addListener(scheduleSnapshot);
 
 // Save history when all windows close (browser closing)
-browser.windows.onRemoved.addListener(async () => {
+if (windowsSupported) browser.windows.onRemoved.addListener(async () => {
   await ensureInit();
   const remaining = await browser.windows.getAll();
   if (remaining.length === 0) {

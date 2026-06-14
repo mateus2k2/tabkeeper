@@ -36,12 +36,12 @@
     "tabs",
     "downloads",
     "alarms",
-    "cookies",
-    "sessions"
+    "cookies"
   ],
-  "optional_permissions": [
-    "tabGroups"
-  ],
+  "options_ui": {
+    "page": "manager/manager.html",
+    "open_in_tab": true
+  },
   "host_permissions": [
     "<all_urls>"
   ]
