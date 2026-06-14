@@ -170,6 +170,17 @@ function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
+async function prependSessionOrder(ids) {
+  const { sessionOrder = [] } = await browser.storage.local.get({ sessionOrder: [] });
+  const without = sessionOrder.filter(id => !ids.includes(id));
+  await browser.storage.local.set({ sessionOrder: [...ids, ...without] });
+}
+
+async function removeFromSessionOrder(ids) {
+  const { sessionOrder = [] } = await browser.storage.local.get({ sessionOrder: [] });
+  await browser.storage.local.set({ sessionOrder: sessionOrder.filter(id => !ids.includes(id)) });
+}
+
 async function captureCurrentSession(name, scope = "all", { fetchFavicons = true } = {}) {
   const queryInfo = scope === "current" ? { currentWindow: true } : {};
   const tabs = await browser.tabs.query(queryInfo);
@@ -396,12 +407,21 @@ browser.runtime.onMessage.addListener((request, sender) => {
       case "saveSession": {
         const session = await captureCurrentSession(request.name, request.scope);
         await dbPut(session);
+        await prependSessionOrder([session.id]);
         return { ok: true, session };
       }
 
       case "getSessions": {
         const sessions = await dbGetAll();
-        sessions.sort((a, b) => b.date - a.date);
+        const { sessionOrder = [] } = await browser.storage.local.get({ sessionOrder: [] });
+        sessions.sort((a, b) => {
+          const ai = sessionOrder.indexOf(a.id);
+          const bi = sessionOrder.indexOf(b.id);
+          if (ai === -1 && bi === -1) return b.date - a.date;
+          if (ai === -1) return -1;
+          if (bi === -1) return 1;
+          return ai - bi;
+        });
         return sessions;
       }
 
@@ -412,11 +432,13 @@ browser.runtime.onMessage.addListener((request, sender) => {
 
       case "deleteSession": {
         await dbDelete(request.id);
+        await removeFromSessionOrder([request.id]);
         return { ok: true };
       }
 
       case "deleteAllSessions": {
         await dbDeleteAll();
+        await browser.storage.local.remove("sessionOrder");
         return { ok: true };
       }
 
@@ -446,11 +468,13 @@ browser.runtime.onMessage.addListener((request, sender) => {
       }
 
       case "importSessions": {
+        const newIds = [];
         for (const session of request.sessions) {
-          // Assign a fresh id to avoid collisions
           session.id = generateId();
           await dbPut(session);
+          newIds.push(session.id);
         }
+        await prependSessionOrder(newIds);
         return { ok: true, count: request.sessions.length };
       }
 
@@ -481,6 +505,7 @@ browser.runtime.onMessage.addListener((request, sender) => {
           windowCount: entry.windowCount,
         };
         await dbPut(session);
+        await prependSessionOrder([session.id]);
         return { ok: true, session };
       }
 
@@ -519,21 +544,32 @@ browser.runtime.onMessage.addListener((request, sender) => {
         if (!merge) {
           await dbDeleteAll();
           await dbHistoryDeleteAll();
+          await browser.storage.local.remove("sessionOrder");
         }
+        const backupIds = [];
         for (const s of sessions) {
-          if (!merge) s.id = s.id || generateId();
-          else s.id = generateId();
+          s.id = merge ? generateId() : (s.id || generateId());
           await dbPut(s);
+          backupIds.push(s.id);
         }
         for (const h of history) {
-          if (!merge) h.id = h.id || generateId();
-          else h.id = generateId();
+          h.id = merge ? generateId() : (h.id || generateId());
           await dbHistoryPut(h);
+        }
+        if (!merge) {
+          await browser.storage.local.set({ sessionOrder: backupIds });
+        } else {
+          await prependSessionOrder(backupIds);
         }
         if (Object.keys(config).length > 0) {
           await browser.storage.local.set(config);
           await setupAlarm();
         }
+        return { ok: true };
+      }
+
+      case "reorderSessions": {
+        await browser.storage.local.set({ sessionOrder: request.order });
         return { ok: true };
       }
 

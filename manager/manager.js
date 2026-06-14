@@ -74,7 +74,10 @@ function highlightMatch(text, query) {
 }
 
 function tabCountLabel(n) { return n === 1 ? "1 tab" : `${n} tabs`; }
-function windowLabel(i, total) { return total === 1 ? "This window" : `Window ${i + 1}`; }
+function windowLabel(win, i, total) {
+  if (win.name) return win.name;
+  return total === 1 ? "This window" : `Window ${i + 1}`;
+}
 function safeFilename(name) { return name.replace(/[\\/:*?"<>|]/g, "_").slice(0, 80); }
 
 function getFaviconEl(tab) {
@@ -286,6 +289,83 @@ async function handleImportText(file) {
     toast("Import failed — check text file format");
     console.error("[session-buddy] import text", e);
   }
+}
+
+function parseUrlList(text) {
+  const lines = text.split(/\r?\n/);
+  const hasIndented = lines.some(l => /^[ \t]/.test(l) && l.trim());
+
+  const isUrl = s => /^(https?|file|ftp):\/\//i.test(s);
+  const makeTab = (url, idx) => ({ url, title: url, index: idx, groupId: -1, favIconUrl: "" });
+
+  if (!hasIndented) {
+    // All flat — put everything in one window
+    const tabs = lines.map(l => l.trim()).filter(isUrl).map(makeTab);
+    return tabs.length ? [{ name: undefined, tabs, incognito: false }] : [];
+  }
+
+  // Indented format: non-indented line = new window (label or first URL), indented = tab
+  const sessions = [{ name: undefined, tabs: [], incognito: false }];
+  let currentWin = sessions[0];
+
+  for (const raw of lines) {
+    const indented = /^[ \t]/.test(raw);
+    const line = raw.trim();
+    if (!line) continue;
+
+    if (!indented) {
+      if (isUrl(line)) {
+        // Non-indented URL = new single-tab window (or add to fresh current if it has no name and no tabs yet)
+        if (currentWin.tabs.length === 0 && !currentWin.name) {
+          currentWin.tabs.push(makeTab(line, 0));
+        } else {
+          currentWin = { name: undefined, tabs: [makeTab(line, 0)], incognito: false };
+          sessions.push(currentWin);
+        }
+      } else {
+        // Non-indented non-URL = window label
+        currentWin = { name: line, tabs: [], incognito: false };
+        sessions.push(currentWin);
+      }
+    } else {
+      // Indented = tab in current window
+      if (isUrl(line)) currentWin.tabs.push(makeTab(line, currentWin.tabs.length));
+    }
+  }
+
+  return sessions.filter(w => w.tabs.length > 0);
+}
+
+async function handleImportUrlList() {
+  showModal(
+    "Import from URL list",
+    `<p style="margin:0 0 8px;font-size:12px;color:var(--text-sec)">One URL per line. Indent lines with spaces/tabs to group them into the same window. Non-indented text labels start a new window group.</p>
+     <textarea id="url-list-input" class="url-list-textarea" placeholder="https://example.com&#10;  https://sub.example.com&#10;Another group&#10;  https://other.com"></textarea>
+     <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--text-sec)">
+       <input type="text" id="url-list-name" class="settings-input" style="width:100%;text-align:left" placeholder="Collection name (optional)" />
+     </label>`,
+    [
+      { label: "Cancel", cls: "btn-ghost", action: hideModal },
+      { label: "Import", cls: "btn-primary", action: async () => {
+        const text = document.getElementById("url-list-input").value;
+        const name = document.getElementById("url-list-name").value.trim();
+        const windows = parseUrlList(text);
+        if (!windows.length) { toast("No valid URLs found"); return; }
+        const session = {
+          name: name || `URL list — ${new Date().toLocaleString()}`,
+          date: Date.now(),
+          windows,
+          tabCount: windows.reduce((s, w) => s + w.tabs.length, 0),
+          windowCount: windows.length,
+        };
+        hideModal();
+        const result = await send({ type: "importSessions", sessions: [session] });
+        toast(`Imported ${result.count} collection`);
+        await loadSessions();
+        renderSidebar();
+      }},
+    ]
+  );
 }
 
 // ─── Selection ────────────────────────────────────────────────────────────────
@@ -738,8 +818,9 @@ function renderCurrentView() {
   ], "btn-primary"));
 
   actionsEl.appendChild(makeDropdownButton("Import", [
-    { label: "Import from JSON", action: () => document.getElementById("import-json-input").click() },
-    { label: "Import from text", action: () => document.getElementById("import-text-input").click() }
+    { label: "Import from JSON",     action: () => document.getElementById("import-json-input").click() },
+    { label: "Import from text",     action: () => document.getElementById("import-text-input").click() },
+    { label: "Import from URL list", action: () => handleImportUrlList() },
   ], "btn-ghost"));
 
   const areaEl = document.getElementById("content-area");
@@ -787,7 +868,7 @@ function renderSessionView(session) {
   state.tabRenderOrder = [];
 
   for (let i = 0; i < session.windows.length; i++) {
-    areaEl.appendChild(buildWindowBlock(session.windows[i], i, session.windows.length, state.searchQuery, true));
+    areaEl.appendChild(buildWindowBlock(session.windows[i], i, session.windows.length, state.searchQuery, true, session));
   }
 
   if (typeof initSessionDragDrop === "function") initSessionDragDrop(session, areaEl);
@@ -795,13 +876,13 @@ function renderSessionView(session) {
 
 // ─── Window block builder ─────────────────────────────────────────────────────
 
-function buildWindowBlock(win, winIdx, totalWindows, query, selectable) {
+function buildWindowBlock(win, winIdx, totalWindows, query, selectable, editSession = null) {
   const block = document.createElement("div");
   block.className = "window-block";
   block.dataset.winIdx = winIdx;
 
   const isPrivate = win.incognito === true;
-  const label = windowLabel(winIdx, totalWindows);
+  const label = windowLabel(win, winIdx, totalWindows);
   const tabCount = win.tabs.length;
   const sortedTabs = [...win.tabs].sort((a, b) => a.index - b.index);
 
@@ -853,6 +934,36 @@ function buildWindowBlock(win, winIdx, totalWindows, query, selectable) {
   </svg>`;
 
   header.appendChild(clickArea);
+
+  // Rename button (only for editable saved sessions)
+  if (editSession) {
+    const renameBtn = document.createElement("button");
+    renameBtn.className = "window-rename-btn";
+    renameBtn.title = "Rename window";
+    renameBtn.innerHTML = `<svg viewBox="0 0 16 16" fill="none">
+      <path d="M11 2.5a1.5 1.5 0 0 1 2.12 0l.38.38a1.5 1.5 0 0 1 0 2.12L5 13.5 2 14l.5-3L11 2.5Z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+    renameBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const current = win.name || "";
+      showModal(
+        "Rename window",
+        `<input id="win-rename-input" type="text" value="${esc(current)}" placeholder="Window name (leave blank to reset)" />`,
+        [
+          { label: "Cancel", cls: "btn-ghost", action: hideModal },
+          { label: "Rename", cls: "btn-primary", action: async () => {
+            const newName = document.getElementById("win-rename-input").value.trim();
+            win.name = newName || undefined;
+            hideModal();
+            await send({ type: "updateSession", session: editSession });
+            renderSessionView(editSession);
+          }},
+        ]
+      );
+    });
+    header.appendChild(renameBtn);
+  }
+
   header.appendChild(collapseBtn);
 
   // ── Body ──

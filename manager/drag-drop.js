@@ -52,9 +52,9 @@ document.addEventListener("wheel", (e) => {
 
 function clearDragClasses() {
   document.querySelectorAll(
-    ".dd-tab-above, .dd-tab-below, .dd-win-over, .dd-win-dragging, .dd-session-over, .dd-session-dragging"
+    ".dd-tab-above, .dd-tab-below, .dd-win-over, .dd-win-dragging, .dd-session-over, .dd-session-dragging, .dd-session-above, .dd-session-below"
   ).forEach(el => el.classList.remove(
-    "dd-tab-above", "dd-tab-below", "dd-win-over", "dd-win-dragging", "dd-session-over", "dd-session-dragging"
+    "dd-tab-above", "dd-tab-below", "dd-win-over", "dd-win-dragging", "dd-session-over", "dd-session-dragging", "dd-session-above", "dd-session-below"
   ));
 }
 
@@ -350,7 +350,7 @@ function persistAndRerender(session, reselectTabs = null) {
   }).catch(() => toast("Failed to save"));
 }
 
-// ─── Sidebar collection drag/drop (merge two collections) ─────────────────────
+// ─── Sidebar collection drag/drop (reorder + merge) ──────────────────────────
 
 function initSidebarDragDrop() {
   document.querySelectorAll(".session-nav-item[data-id]").forEach(item => {
@@ -359,7 +359,6 @@ function initSidebarDragDrop() {
     item.setAttribute("draggable", "true");
 
     item.addEventListener("dragstart", (e) => {
-      // Don't hijack if this is already a selection ctrl/shift-click flow
       _drag = { type: "session", id };
       e.dataTransfer.effectAllowed = "move";
       item.classList.add("dd-session-dragging");
@@ -375,22 +374,46 @@ function initSidebarDragDrop() {
       if (!_drag || _drag.type !== "session" || _drag.id === id) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
-      item.classList.add("dd-session-over");
+      item.classList.remove("dd-session-over", "dd-session-above", "dd-session-below");
+      const rect = item.getBoundingClientRect();
+      const pct  = (e.clientY - rect.top) / rect.height;
+      if (pct < 0.35)      item.classList.add("dd-session-above");
+      else if (pct > 0.65) item.classList.add("dd-session-below");
+      else                 item.classList.add("dd-session-over");
     });
 
     item.addEventListener("dragleave", () => {
-      item.classList.remove("dd-session-over");
+      item.classList.remove("dd-session-over", "dd-session-above", "dd-session-below");
     });
 
     item.addEventListener("drop", async (e) => {
       e.preventDefault();
-      item.classList.remove("dd-session-over");
+      const isAbove  = item.classList.contains("dd-session-above");
+      const isBelow  = item.classList.contains("dd-session-below");
+      const isMerge  = item.classList.contains("dd-session-over");
+      item.classList.remove("dd-session-over", "dd-session-above", "dd-session-below");
       if (!_drag || _drag.type !== "session" || _drag.id === id) return;
 
       const srcId = _drag.id;
       const dstId = id;
-      _drag = null; // clear early to prevent double-fire
+      _drag = null;
 
+      if (isAbove || isBelow) {
+        // Reorder
+        const order  = state.sessions.map(s => s.id);
+        const srcIdx = order.indexOf(srcId);
+        order.splice(srcIdx, 1);
+        const dstIdx = order.indexOf(dstId);
+        order.splice(isAbove ? dstIdx : dstIdx + 1, 0, srcId);
+        await send({ type: "reorderSessions", order });
+        await loadSessions();
+        renderSidebar();
+        return;
+      }
+
+      if (!isMerge) return;
+
+      // Merge
       const srcName = state.sessions.find(s => s.id === srcId)?.name ?? "collection";
       const dstName = state.sessions.find(s => s.id === dstId)?.name ?? "collection";
 
@@ -407,8 +430,8 @@ function initSidebarDragDrop() {
             ]);
             if (!src || !dst) { toast("Could not load collections"); return; }
 
-            dst.windows   = [...dst.windows, ...src.windows];
-            dst.tabCount  = dst.windows.reduce((s, w) => s + w.tabs.length, 0);
+            dst.windows     = [...dst.windows, ...src.windows];
+            dst.tabCount    = dst.windows.reduce((s, w) => s + w.tabs.length, 0);
             dst.windowCount = dst.windows.length;
 
             await send({ type: "updateSession", session: dst });

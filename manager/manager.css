@@ -378,6 +378,41 @@ html, body {
 }
 .collapse-arrow.collapsed { transform: rotate(-90deg); }
 
+.window-rename-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.1s;
+  color: var(--text-dim);
+}
+.window-rename-btn svg { width: 13px; height: 13px; }
+.window-header:hover .window-rename-btn { opacity: 1; }
+.window-rename-btn:hover { background: rgba(255,255,255,0.1); color: var(--text-pri); }
+
+.url-list-textarea {
+  width: 100%;
+  height: 220px;
+  padding: 8px 10px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-pri);
+  font-size: 12px;
+  font-family: monospace;
+  line-height: 1.5;
+  outline: none;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.url-list-textarea:focus { border-color: var(--accent); }
+
 /* ─── Tab group label ─────────────────────────────────────────────────────── */
 .tab-group-label {
   display: flex;
@@ -646,6 +681,8 @@ mark { background: rgba(255,200,0,0.2); color: inherit; border-radius: 2px; padd
 
 .session-nav-item.dd-session-dragging { opacity: 0.4; }
 .session-nav-item.dd-session-over     { background: rgba(26,115,232,0.18); border-left-color: var(--accent); }
+.session-nav-item.dd-session-above    { box-shadow: 0 -2px 0 var(--accent); }
+.session-nav-item.dd-session-below    { box-shadow: 0 2px 0 var(--accent); }
 
 /* ─── History timeline ────────────────────────────────────────────────────── */
 .history-header-actions { display: flex; gap: 8px; }
