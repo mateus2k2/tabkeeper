@@ -1244,6 +1244,15 @@ function toast(msg) {
 
 // ─── Settings ────────────────────────────────────────────────────────────────
 
+async function exportBackup() {
+  const data = await send({ type: "exportBackup" });
+  const blob = new Blob([JSON.stringify({ ...data, version: 1, exportedAt: Date.now() }, null, 2)], { type: "application/json" });
+  const url  = URL.createObjectURL(blob);
+  const date = new Date().toISOString().slice(0, 10);
+  await browser.downloads.download({ url, filename: `tabkeeper-backup-${date}.json`, saveAs: false });
+  URL.revokeObjectURL(url);
+}
+
 document.getElementById("btn-settings").addEventListener("click", async () => {
   const cfg = await send({ type: "getConfig" });
 
@@ -1269,6 +1278,20 @@ document.getElementById("btn-settings").addEventListener("click", async () => {
           <input id="cfg-limit" type="number" class="settings-input" min="5" max="500" value="${cfg.historyLimit}" />
         </label>
       </div>
+
+      <div class="settings-group">
+        <div class="settings-label">Backup</div>
+
+        <div class="settings-row">
+          <span class="settings-row-label">Export all collections, history, and settings</span>
+          <button id="cfg-export-backup" class="btn btn-ghost settings-backup-btn">Export</button>
+        </div>
+
+        <div class="settings-row">
+          <span class="settings-row-label">Import from backup file</span>
+          <button id="cfg-import-backup" class="btn btn-ghost settings-backup-btn">Import</button>
+        </div>
+      </div>
     </div>`,
     [
       { label: "Cancel", cls: "btn-ghost", action: hideModal },
@@ -1281,6 +1304,15 @@ document.getElementById("btn-settings").addEventListener("click", async () => {
       }},
     ]
   );
+
+  document.getElementById("cfg-export-backup").addEventListener("click", async () => {
+    await exportBackup();
+    toast("Backup exported");
+  });
+
+  document.getElementById("cfg-import-backup").addEventListener("click", () => {
+    document.getElementById("import-backup-input").click();
+  });
 });
 
 // ─── Sidebar toggle (mobile) ──────────────────────────────────────────────────
@@ -1349,6 +1381,47 @@ document.getElementById("import-cookie-input").addEventListener("change", async 
   const file = e.target.files[0];
   if (file) await importCookies(file);
   e.target.value = "";
+});
+
+document.getElementById("import-backup-input").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+
+  let data;
+  try {
+    data = JSON.parse(await file.text());
+  } catch {
+    toast("Invalid backup file");
+    return;
+  }
+
+  const sessionCount = (data.sessions || []).length;
+  const historyCount = (data.history  || []).length;
+
+  showModal(
+    "Import backup",
+    `<p>This backup contains <strong>${sessionCount} collection${sessionCount !== 1 ? "s" : ""}</strong> and <strong>${historyCount} history entr${historyCount !== 1 ? "ies" : "y"}</strong>.</p>
+     <p>How would you like to import it?</p>`,
+    [
+      { label: "Cancel", cls: "btn-ghost", action: hideModal },
+      { label: "Merge", cls: "btn-ghost", action: async () => {
+        hideModal();
+        await send({ type: "importBackup", sessions: data.sessions || [], history: data.history || [], config: {}, merge: true });
+        await loadSessions();
+        renderSidebar();
+        toast("Backup merged");
+      }},
+      { label: "Replace all", cls: "btn-danger", action: async () => {
+        hideModal();
+        await send({ type: "importBackup", sessions: data.sessions || [], history: data.history || [], config: data.config || {}, merge: false });
+        await loadSessions();
+        renderSidebar();
+        selectView("current");
+        toast("Backup restored");
+      }},
+    ]
+  );
 });
 
 // ─── History ──────────────────────────────────────────────────────────────────

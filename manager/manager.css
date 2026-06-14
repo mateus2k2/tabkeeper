@@ -608,6 +608,7 @@ mark { background: rgba(255,200,0,0.2); color: inherit; border-radius: 2px; padd
 .settings-select:focus,
 .settings-input:focus { border-color: var(--accent); }
 .settings-input { text-align: right; }
+.settings-backup-btn { width: 80px; padding: 5px 0; font-size: 12px; }
 
 /* ─── Toast ───────────────────────────────────────────────────────────────── */
 .toast {

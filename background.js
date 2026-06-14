@@ -505,6 +505,38 @@ browser.runtime.onMessage.addListener((request, sender) => {
         return { ok: true };
       }
 
+      case "exportBackup": {
+        const [sessions, history, config] = await Promise.all([
+          dbGetAll(),
+          dbHistoryGetAll(),
+          getConfig(),
+        ]);
+        return { sessions, history, config };
+      }
+
+      case "importBackup": {
+        const { sessions = [], history = [], config = {}, merge = false } = request;
+        if (!merge) {
+          await dbDeleteAll();
+          await dbHistoryDeleteAll();
+        }
+        for (const s of sessions) {
+          if (!merge) s.id = s.id || generateId();
+          else s.id = generateId();
+          await dbPut(s);
+        }
+        for (const h of history) {
+          if (!merge) h.id = h.id || generateId();
+          else h.id = generateId();
+          await dbHistoryPut(h);
+        }
+        if (Object.keys(config).length > 0) {
+          await browser.storage.local.set(config);
+          await setupAlarm();
+        }
+        return { ok: true };
+      }
+
       default:
         return { ok: false, error: "unknown message type" };
     }

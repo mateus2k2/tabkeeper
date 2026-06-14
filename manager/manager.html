@@ -26,7 +26,10 @@
   </div>
   <div class="topbar-actions">
     <button id="btn-settings" class="icon-btn" title="Settings">
-      <svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" stroke="#ccc" stroke-width="1.8"/><path d="M10 1v2M10 17v2M1 10h2M17 10h2M3.22 3.22l1.41 1.41M15.36 15.36l1.41 1.41M3.22 16.78l1.41-1.41M15.36 4.64l1.41-1.41" stroke="#ccc" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" stroke="#ccc" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M16.2 12.2a1.2 1.2 0 0 0 .24 1.32l.04.04a1.46 1.46 0 0 1-2.06 2.06l-.04-.04a1.2 1.2 0 0 0-1.32-.24 1.2 1.2 0 0 0-.73 1.1V16.8a1.46 1.46 0 0 1-2.92 0v-.07a1.2 1.2 0 0 0-.78-1.1 1.2 1.2 0 0 0-1.32.24l-.04.04a1.46 1.46 0 0 1-2.06-2.06l.04-.04a1.2 1.2 0 0 0 .24-1.32 1.2 1.2 0 0 0-1.1-.73H3.2a1.46 1.46 0 0 1 0-2.92h.07a1.2 1.2 0 0 0 1.1-.78 1.2 1.2 0 0 0-.24-1.32l-.04-.04a1.46 1.46 0 0 1 2.06-2.06l.04.04a1.2 1.2 0 0 0 1.32.24h.06a1.2 1.2 0 0 0 .73-1.1V3.2a1.46 1.46 0 0 1 2.92 0v.07a1.2 1.2 0 0 0 .73 1.1 1.2 1.2 0 0 0 1.32-.24l.04-.04a1.46 1.46 0 0 1 2.06 2.06l-.04.04a1.2 1.2 0 0 0-.24 1.32v.06a1.2 1.2 0 0 0 1.1.73h.06a1.46 1.46 0 0 1 0 2.92h-.07a1.2 1.2 0 0 0-1.1.73Z" stroke="#ccc" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
     </button>
   </div>
 </header>
@@ -141,7 +144,8 @@
 <!-- Hidden file inputs for import -->
 <input type="file" id="import-json-input"    accept=".json,application/json" style="display:none" />
 <input type="file" id="import-text-input"   accept=".txt,text/plain"        style="display:none" />
-<input type="file" id="import-cookie-input" accept=".json,application/json" style="display:none" />
+<input type="file" id="import-cookie-input"  accept=".json,application/json" style="display:none" />
+<input type="file" id="import-backup-input" accept=".json,application/json" style="display:none" />
 
 <script src="manager.js"></script>
 <script src="drag-drop.js"></script>
