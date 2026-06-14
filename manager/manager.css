@@ -562,6 +562,53 @@ mark { background: rgba(255,200,0,0.2); color: inherit; border-radius: 2px; padd
 .modal-body p { font-size: 13px; color: var(--text-sec); line-height: 1.5; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
+/* ─── Settings modal ─────────────────────────────────────────────────────── */
+.settings-form { display: flex; flex-direction: column; gap: 20px; }
+
+.settings-group { display: flex; flex-direction: column; gap: 2px; }
+
+.settings-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding-bottom: 8px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: default;
+}
+.settings-row:last-child { border-bottom: none; }
+
+.settings-row-label {
+  font-size: 13px;
+  color: var(--text-pri);
+  flex: 1;
+}
+
+.settings-select,
+.settings-input {
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-pri);
+  font-size: 13px;
+  padding: 5px 8px;
+  outline: none;
+  width: 140px;
+  text-align: right;
+}
+.settings-select:focus,
+.settings-input:focus { border-color: var(--accent); }
+.settings-input { text-align: right; }
+
 /* ─── Toast ───────────────────────────────────────────────────────────────── */
 .toast {
   position: fixed;
@@ -622,7 +669,7 @@ mark { background: rgba(255,200,0,0.2); color: inherit; border-radius: 2px; padd
   border: 1px solid transparent;
 }
 .history-entry.open { border-color: var(--border); background: var(--bg-panel); }
-.history-entry.now { background: var(--accent); border-color: var(--accent); }
+.history-entry.now { background: var(--accent); border-color: var(--accent); padding: 5px}
 
 .history-entry-header {
   display: flex;
@@ -847,6 +894,6 @@ mark { background: rgba(255,200,0,0.2); color: inherit; border-radius: 2px; padd
 
   /* History timeline: less left indent */
   .history-timeline { padding-left: 24px; }
-  .history-entry-dot { left: -20px; }
+  .history-entry-dot { left: -24px; }
   .history-timeline::before { left: 6px; }
 }

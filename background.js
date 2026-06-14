@@ -74,7 +74,12 @@ function dbDeleteAll() {
 
 // ─── History IndexedDB ────────────────────────────────────────────────────────
 
-const HISTORY_LIMIT = 50;
+const DEFAULT_CONFIG = { historyInterval: 5, historyLimit: 50 };
+
+async function getConfig() {
+  const stored = await browser.storage.local.get(DEFAULT_CONFIG);
+  return { ...DEFAULT_CONFIG, ...stored };
+}
 
 function dbHistoryPut(entry) {
   return new Promise((resolve, reject) => {
@@ -490,6 +495,16 @@ browser.runtime.onMessage.addListener((request, sender) => {
         return { ok: true };
       }
 
+      case "getConfig": {
+        return await getConfig();
+      }
+
+      case "saveConfig": {
+        await browser.storage.local.set(request.config);
+        await setupAlarm();
+        return { ok: true };
+      }
+
       default:
         return { ok: false, error: "unknown message type" };
     }
@@ -530,11 +545,12 @@ async function commitHistory(type) {
     windowCount: lastSnapshot.windowCount,
   };
   await dbHistoryPut(entry);
-  // Trim to limit
+  // Trim to configured limit
+  const { historyLimit } = await getConfig();
   const all = await dbHistoryGetAll();
-  if (all.length > HISTORY_LIMIT) {
+  if (all.length > historyLimit) {
     const sorted = all.sort((a, b) => a.date - b.date);
-    for (const old of sorted.slice(0, all.length - HISTORY_LIMIT)) {
+    for (const old of sorted.slice(0, all.length - historyLimit)) {
       await dbHistoryDelete(old.id);
     }
   }
@@ -561,10 +577,15 @@ browser.windows.onRemoved.addListener(async () => {
   }
 });
 
-// Periodic auto-save every 5 minutes
-browser.alarms.get("historyAutoSave").then(existing => {
-  if (!existing) browser.alarms.create("historyAutoSave", { periodInMinutes: 5 });
-});
+async function setupAlarm() {
+  const { historyInterval } = await getConfig();
+  const existing = await browser.alarms.get("historyAutoSave");
+  if (!existing || Math.abs((existing.periodInMinutes ?? 0) - historyInterval) > 0.01) {
+    await browser.alarms.clear("historyAutoSave");
+    browser.alarms.create("historyAutoSave", { periodInMinutes: historyInterval });
+  }
+}
+setupAlarm();
 browser.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== "historyAutoSave") return;
   await ensureInit();

@@ -1242,6 +1242,47 @@ function toast(msg) {
   toastTimer = setTimeout(() => el.classList.add("hidden"), 2500);
 }
 
+// ─── Settings ────────────────────────────────────────────────────────────────
+
+document.getElementById("btn-settings").addEventListener("click", async () => {
+  const cfg = await send({ type: "getConfig" });
+
+  const intervalOptions = [1, 2, 5, 10, 15, 30, 60];
+
+  showModal(
+    "Settings",
+    `<div class="settings-form">
+      <div class="settings-group">
+        <div class="settings-label">History</div>
+
+        <label class="settings-row">
+          <span class="settings-row-label">Auto-save interval</span>
+          <select id="cfg-interval" class="settings-select">
+            ${intervalOptions.map(m =>
+              `<option value="${m}" ${cfg.historyInterval === m ? "selected" : ""}>${m} minute${m !== 1 ? "s" : ""}</option>`
+            ).join("")}
+          </select>
+        </label>
+
+        <label class="settings-row">
+          <span class="settings-row-label">Maximum entries kept</span>
+          <input id="cfg-limit" type="number" class="settings-input" min="5" max="500" value="${cfg.historyLimit}" />
+        </label>
+      </div>
+    </div>`,
+    [
+      { label: "Cancel", cls: "btn-ghost", action: hideModal },
+      { label: "Save", cls: "btn-primary", action: async () => {
+        const interval = parseInt(document.getElementById("cfg-interval").value, 10);
+        const limit    = Math.max(5, Math.min(500, parseInt(document.getElementById("cfg-limit").value, 10) || 50));
+        await send({ type: "saveConfig", config: { historyInterval: interval, historyLimit: limit } });
+        hideModal();
+        toast("Settings saved");
+      }},
+    ]
+  );
+});
+
 // ─── Sidebar toggle (mobile) ──────────────────────────────────────────────────
 
 function closeSidebarIfMobile() {
