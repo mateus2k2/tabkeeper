@@ -48,51 +48,159 @@ function send(msg) {
 }
 
 // ─── Undo / Redo ──────────────────────────────────────────────────────────────
-let _undoSnapshot = null; // { sessionId, session } deep copy — state before last action
-let _redoSnapshot = null; // deep copy — state before last undo (enables redo)
+let _undoSnapshot = null;
+let _redoSnapshot = null;
+
+// Snapshot types:
+//  { type: "session",   sessionId, session }          — tab/window edits within a session
+//  { type: "rename",    sessionId, oldName }           — collection rename
+//  { type: "delete",    sessions: [...], oldOrder }    — deleted collection(s)
+//  { type: "re-delete", ids: [...] }                   — redo of an undo-delete
+//  { type: "reorder",   oldOrder: [...] }              — sidebar reorder
+//  { type: "merge",     srcSession, dstSession }       — merge (undo restores both)
+//  { type: "re-merge",  srcId, mergedDstSession }      — redo of a merge undo
 
 function updateUndoRedoBtns() {
-  const isSessionView = state.view !== "current" && state.view !== "cookies" &&
-                        state.view !== "history" && state.view !== "closed";
-  const undoBtn = document.getElementById("btn-undo");
-  const redoBtn = document.getElementById("btn-redo");
-  undoBtn.disabled = !_undoSnapshot || !isSessionView;
-  redoBtn.disabled = !_redoSnapshot || !isSessionView;
+  document.getElementById("btn-undo").disabled = !_undoSnapshot;
+  document.getElementById("btn-redo").disabled = !_redoSnapshot;
 }
 
-function pushUndo(session) {
-  _undoSnapshot = { sessionId: session.id, session: JSON.parse(JSON.stringify(session)) };
+function pushUndo(snapshot) {
+  _undoSnapshot = snapshot;
   _redoSnapshot = null;
   updateUndoRedoBtns();
 }
 
 async function undoLastAction() {
   if (!_undoSnapshot) return;
-  const current = state.sessions.find(s => s.id === _undoSnapshot.sessionId);
-  if (current) _redoSnapshot = { sessionId: current.id, session: JSON.parse(JSON.stringify(current)) };
-  const { sessionId, session } = _undoSnapshot;
+  const snap = _undoSnapshot;
   _undoSnapshot = null;
   updateUndoRedoBtns();
-  await send({ type: "updateSession", session });
-  const idx = state.sessions.findIndex(s => s.id === sessionId);
-  if (idx !== -1) state.sessions[idx] = session;
-  if (state.view === sessionId) renderSessionView(session);
-  renderSidebar();
+
+  switch (snap.type) {
+    case "session": {
+      const current = state.sessions.find(s => s.id === snap.sessionId);
+      if (current) _redoSnapshot = { type: "session", sessionId: current.id, session: JSON.parse(JSON.stringify(current)) };
+      await send({ type: "updateSession", session: snap.session });
+      const idx = state.sessions.findIndex(s => s.id === snap.sessionId);
+      if (idx !== -1) state.sessions[idx] = snap.session;
+      if (state.view === snap.sessionId) renderSessionView(snap.session);
+      renderSidebar();
+      break;
+    }
+    case "rename": {
+      const current = state.sessions.find(s => s.id === snap.sessionId);
+      if (current) _redoSnapshot = { type: "rename", sessionId: snap.sessionId, oldName: current.name };
+      await send({ type: "renameSession", id: snap.sessionId, name: snap.oldName });
+      await loadSessions();
+      renderSidebar();
+      if (state.view === snap.sessionId) {
+        const updated = state.sessions.find(s => s.id === snap.sessionId);
+        if (updated) renderSessionView(updated);
+      }
+      break;
+    }
+    case "delete": {
+      _redoSnapshot = { type: "re-delete", ids: snap.sessions.map(s => s.id) };
+      for (const s of snap.sessions) await send({ type: "updateSession", session: s });
+      if (snap.oldOrder) await send({ type: "reorderSessions", order: snap.oldOrder });
+      await loadSessions();
+      renderSidebar();
+      break;
+    }
+    case "re-delete": {
+      const toDelete = state.sessions.filter(s => snap.ids.includes(s.id));
+      _redoSnapshot = { type: "delete", sessions: toDelete.map(s => JSON.parse(JSON.stringify(s))), oldOrder: state.sessions.map(s => s.id) };
+      for (const id of snap.ids) await send({ type: "deleteSession", id });
+      await loadSessions();
+      if (snap.ids.includes(state.view)) { state.view = "current"; renderCurrentView(); }
+      renderSidebar();
+      break;
+    }
+    case "reorder": {
+      _redoSnapshot = { type: "reorder", oldOrder: state.sessions.map(s => s.id) };
+      await send({ type: "reorderSessions", order: snap.oldOrder });
+      await loadSessions();
+      renderSidebar();
+      break;
+    }
+    case "merge": {
+      const currentDst = state.sessions.find(s => s.id === snap.dstSession.id);
+      if (currentDst) _redoSnapshot = { type: "re-merge", srcId: snap.srcSession.id, mergedDstSession: JSON.parse(JSON.stringify(currentDst)) };
+      await send({ type: "updateSession", session: snap.srcSession });
+      await send({ type: "updateSession", session: snap.dstSession });
+      await loadSessions();
+      renderSidebar();
+      if (state.view === snap.srcSession.id) renderSessionView(snap.srcSession);
+      else if (state.view === snap.dstSession.id) renderSessionView(snap.dstSession);
+      break;
+    }
+  }
+  updateUndoRedoBtns();
   toast("Undone");
 }
 
 async function redoLastAction() {
   if (!_redoSnapshot) return;
-  const current = state.sessions.find(s => s.id === _redoSnapshot.sessionId);
-  if (current) _undoSnapshot = { sessionId: current.id, session: JSON.parse(JSON.stringify(current)) };
-  const { sessionId, session } = _redoSnapshot;
+  const snap = _redoSnapshot;
   _redoSnapshot = null;
   updateUndoRedoBtns();
-  await send({ type: "updateSession", session });
-  const idx = state.sessions.findIndex(s => s.id === sessionId);
-  if (idx !== -1) state.sessions[idx] = session;
-  if (state.view === sessionId) renderSessionView(session);
-  renderSidebar();
+
+  switch (snap.type) {
+    case "session": {
+      const current = state.sessions.find(s => s.id === snap.sessionId);
+      if (current) _undoSnapshot = { type: "session", sessionId: current.id, session: JSON.parse(JSON.stringify(current)) };
+      await send({ type: "updateSession", session: snap.session });
+      const idx = state.sessions.findIndex(s => s.id === snap.sessionId);
+      if (idx !== -1) state.sessions[idx] = snap.session;
+      if (state.view === snap.sessionId) renderSessionView(snap.session);
+      renderSidebar();
+      break;
+    }
+    case "rename": {
+      const current = state.sessions.find(s => s.id === snap.sessionId);
+      if (current) _undoSnapshot = { type: "rename", sessionId: snap.sessionId, oldName: current.name };
+      await send({ type: "renameSession", id: snap.sessionId, name: snap.oldName });
+      await loadSessions();
+      renderSidebar();
+      if (state.view === snap.sessionId) {
+        const updated = state.sessions.find(s => s.id === snap.sessionId);
+        if (updated) renderSessionView(updated);
+      }
+      break;
+    }
+    case "re-delete": {
+      const toDelete = state.sessions.filter(s => snap.ids.includes(s.id));
+      _undoSnapshot = { type: "delete", sessions: toDelete.map(s => JSON.parse(JSON.stringify(s))), oldOrder: state.sessions.map(s => s.id) };
+      for (const id of snap.ids) await send({ type: "deleteSession", id });
+      await loadSessions();
+      if (snap.ids.includes(state.view)) { state.view = "current"; renderCurrentView(); }
+      renderSidebar();
+      break;
+    }
+    case "reorder": {
+      _undoSnapshot = { type: "reorder", oldOrder: state.sessions.map(s => s.id) };
+      await send({ type: "reorderSessions", order: snap.oldOrder });
+      await loadSessions();
+      renderSidebar();
+      break;
+    }
+    case "re-merge": {
+      const dstCurrent = state.sessions.find(s => s.id === snap.mergedDstSession.id);
+      const srcCurrent = state.sessions.find(s => s.id === snap.srcId);
+      if (dstCurrent && srcCurrent) {
+        _undoSnapshot = { type: "merge", srcSession: JSON.parse(JSON.stringify(srcCurrent)), dstSession: JSON.parse(JSON.stringify(dstCurrent)) };
+      }
+      await send({ type: "updateSession", session: snap.mergedDstSession });
+      await send({ type: "deleteSession", id: snap.srcId });
+      await loadSessions();
+      renderSidebar();
+      if (state.view === snap.srcId) { state.view = snap.mergedDstSession.id; selectView(snap.mergedDstSession.id); }
+      else if (state.view === snap.mergedDstSession.id) renderSessionView(snap.mergedDstSession);
+      break;
+    }
+  }
+  updateUndoRedoBtns();
   toast("Redone");
 }
 
@@ -691,7 +799,7 @@ async function removeSelectedTabsFromSession() {
   const session = state.sessions.find(s => s.id === state.view);
   if (!session) return;
 
-  pushUndo(session);
+  pushUndo({ type: "session", sessionId: session.id, session: JSON.parse(JSON.stringify(session)) });
 
   // Build set of "wi:ti" keys to remove
   const toRemove = new Set(state.selectedTabKeys);
@@ -739,10 +847,12 @@ async function removeSelectedTabsFromSession() {
 document.getElementById("sidebar-sel-del").addEventListener("click", async () => {
   if (!state.selectedSessionIds.size) return;
   const ids = [...state.selectedSessionIds];
+  const toDelete = state.sessions.filter(s => ids.includes(s.id));
+  pushUndo({ type: "delete", sessions: toDelete.map(s => JSON.parse(JSON.stringify(s))), oldOrder: state.sessions.map(s => s.id) });
   for (const id of ids) {
     await send({ type: "deleteSession", id });
   }
-  toast(`Deleted ${ids.length} session${ids.length !== 1 ? "s" : ""}`);
+  toast(`Deleted ${ids.length} collection${ids.length !== 1 ? "s" : ""}`, undoLastAction);
   clearSidebarSelection();
   if (state.selectedSessionIds.has(state.view)) {
     state.view = "current";
@@ -837,8 +947,6 @@ function renderSidebar() {
 function selectView(viewId) {
   state.view = viewId;
   state.historyEntry = null;
-  _undoSnapshot = null;
-  _redoSnapshot = null;
   clearTabSelection();
   updateUndoRedoBtns();
   renderSidebar();
@@ -1013,7 +1121,7 @@ function buildWindowBlock(win, winIdx, totalWindows, query, selectable, editSess
           { label: "Cancel", cls: "btn-ghost", action: hideModal },
           { label: "Rename", cls: "btn-primary", action: async () => {
             const newName = document.getElementById("win-rename-input").value.trim();
-            pushUndo(editSession);
+            pushUndo({ type: "session", sessionId: editSession.id, session: JSON.parse(JSON.stringify(editSession)) });
             win.name = newName || undefined;
             hideModal();
             await send({ type: "updateSession", session: editSession });
@@ -1315,9 +1423,10 @@ function showRenameModal(session) {
       { label: "Rename", cls: "btn-primary", action: async () => {
         const name = document.getElementById("rename-input").value.trim();
         if (!name) return;
+        pushUndo({ type: "rename", sessionId: session.id, oldName: session.name });
         hideModal();
         await send({ type: "renameSession", id: session.id, name });
-        toast("Renamed");
+        toast("Renamed", undoLastAction);
         await loadSessions();
         renderSidebar();
         if (state.view === session.id) {
@@ -1332,13 +1441,14 @@ function showRenameModal(session) {
 function showDeleteModal(session) {
   showModal(
     "Delete collection",
-    `<p>Delete "<strong>${esc(session.name)}</strong>"? This cannot be undone.</p>`,
+    `<p>Delete "<strong>${esc(session.name)}</strong>"?</p>`,
     [
       { label: "Cancel", cls: "btn-ghost", action: hideModal },
       { label: "Delete", cls: "btn-danger", action: async () => {
+        pushUndo({ type: "delete", sessions: [JSON.parse(JSON.stringify(session))], oldOrder: state.sessions.map(s => s.id) });
         hideModal();
         await send({ type: "deleteSession", id: session.id });
-        toast("Collection deleted");
+        toast("Collection deleted", undoLastAction);
         await loadSessions();
         state.view = "current";
         clearTabSelection();

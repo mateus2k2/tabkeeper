@@ -222,7 +222,7 @@ function setupWindowDrop(block, winIdx) {
 // ─── Data mutations ───────────────────────────────────────────────────────────
 
 function applyTabMove(session, srcWin, srcTabSort, dstWin, dstTabSort) {
-  pushUndo(session);
+  pushUndo({ type: "session", sessionId: session.id, session: JSON.parse(JSON.stringify(session)) });
   const srcWindow = session.windows[srcWin];
   const dstWindow = session.windows[dstWin];
 
@@ -268,7 +268,7 @@ function applyTabMove(session, srcWin, srcTabSort, dstWin, dstTabSort) {
 }
 
 function applyBulkTabMove(session, bulkKeys, dstWin, dstTabSort) {
-  pushUndo(session);
+  pushUndo({ type: "session", sessionId: session.id, session: JSON.parse(JSON.stringify(session)) });
   // Collect tabs in render order so relative order is preserved
   const tabsToMove = state.tabRenderOrder
     .filter(r => bulkKeys.has(r.key))
@@ -312,7 +312,7 @@ function applyBulkTabMove(session, bulkKeys, dstWin, dstTabSort) {
 }
 
 function applyWindowMerge(session, srcWin, dstWin) {
-  pushUndo(session);
+  pushUndo({ type: "session", sessionId: session.id, session: JSON.parse(JSON.stringify(session)) });
   const srcWindow = session.windows[srcWin];
   // Splice first so dstWin index may shift
   session.windows.splice(srcWin, 1);
@@ -403,7 +403,9 @@ function initSidebarDragDrop() {
 
       if (isAbove || isBelow) {
         // Reorder
-        const order  = state.sessions.map(s => s.id);
+        const oldOrder = state.sessions.map(s => s.id);
+        pushUndo({ type: "reorder", oldOrder });
+        const order  = [...oldOrder];
         const srcIdx = order.indexOf(srcId);
         order.splice(srcIdx, 1);
         const dstIdx = order.indexOf(dstId);
@@ -433,13 +435,15 @@ function initSidebarDragDrop() {
             ]);
             if (!src || !dst) { toast("Could not load collections"); return; }
 
+            pushUndo({ type: "merge", srcSession: JSON.parse(JSON.stringify(src)), dstSession: JSON.parse(JSON.stringify(dst)) });
+
             dst.windows     = [...dst.windows, ...src.windows];
             dst.tabCount    = dst.windows.reduce((s, w) => s + w.tabs.length, 0);
             dst.windowCount = dst.windows.length;
 
             await send({ type: "updateSession", session: dst });
             await send({ type: "deleteSession", id: srcId });
-            toast(`Merged into "${dst.name}"`);
+            toast(`Merged into "${dst.name}"`, undoLastAction);
 
             await loadSessions();
             renderSidebar();
