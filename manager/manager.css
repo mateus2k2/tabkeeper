@@ -834,7 +834,7 @@ mark { background: rgba(255,200,0,0.2); color: inherit; border-radius: 2px; padd
 .closed-window-block {
   border: 1px solid var(--border);
   border-radius: 6px;
-  margin: 10px 14px;
+  margin: 10px 0;
   overflow: hidden;
 }
 
