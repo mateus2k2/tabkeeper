@@ -792,7 +792,7 @@ async function cloudSignIn(clientId, clientSecret) {
     `?client_id=${encodeURIComponent(clientId)}` +
     `&response_type=code` +
     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-    `&scope=${encodeURIComponent("https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.email")}` +
+    `&scope=${encodeURIComponent("https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email")}` +
     `&access_type=offline&prompt=consent`;
 
   const redirected = await browser.identity.launchWebAuthFlow({ url: authURL, interactive: true });
@@ -831,13 +831,47 @@ async function cloudSignOut() {
   }
   await browser.storage.local.remove([
     "syncAccessToken", "syncRefreshToken", "syncTokenExpiry",
-    "syncEmail", "syncLastSyncTime", "syncRemovedQueue"
+    "syncEmail", "syncLastSyncTime", "syncRemovedQueue", "syncFolderId"
   ]);
+}
+
+async function driveGetOrCreateFolder(): Promise<string> {
+  const token = await getValidAccessToken();
+  const cached = await browser.storage.local.get({ syncFolderId: "" });
+  if (cached.syncFolderId) return cached.syncFolderId;
+
+  // Search for existing TabKeeper folder
+  const q = `name='TabKeeper' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  const searchResp = await fetch(
+    `https://www.googleapis.com/drive/v3/files?${new URLSearchParams({ q, fields: "files(id)" })}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  const searchJson = await searchResp.json();
+  if (searchJson.error) throw new Error(searchJson.error.message);
+
+  if (searchJson.files?.length) {
+    const id = searchJson.files[0].id;
+    await browser.storage.local.set({ syncFolderId: id });
+    return id;
+  }
+
+  // Create it
+  const createResp = await fetch("https://www.googleapis.com/drive/v3/files", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "TabKeeper", mimeType: "application/vnd.google-apps.folder" })
+  });
+  const createJson = await createResp.json();
+  if (createJson.error) throw new Error(createJson.error.message);
+  await browser.storage.local.set({ syncFolderId: createJson.id });
+  return createJson.id;
 }
 
 async function driveList() {
   const token = await getValidAccessToken();
-  const params = new URLSearchParams({ spaces: "appDataFolder", fields: "files(id,name,appProperties)", pageSize: "1000" });
+  const folderId = await driveGetOrCreateFolder();
+  const q = `'${folderId}' in parents and mimeType='application/json' and trashed=false`;
+  const params = new URLSearchParams({ q, fields: "files(id,name,appProperties)", pageSize: "1000" });
   const resp = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -848,11 +882,12 @@ async function driveList() {
 
 async function driveUpload(session, fileId = "") {
   const token = await getValidAccessToken();
+  const folderId = await driveGetOrCreateFolder();
   const metadata = {
     name: session.id,
     appProperties: { lastEditedTime: String(session.lastEditedTime || session.date || 0) },
     mimeType: "application/json",
-    ...(!fileId && { parents: ["appDataFolder"] })
+    ...(!fileId && { parents: [folderId] })
   };
   const form = new FormData();
   form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));

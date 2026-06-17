@@ -97,7 +97,7 @@ function DroppableWinBody({
   });
 
   return (
-    <div ref={ref} style={{ minHeight: "8px" }}>
+    <div ref={ref}>
       {children(isDropTarget)}
     </div>
   );
@@ -325,10 +325,10 @@ export function WindowBlock({
       {({ blockRef, handleRef, isDragging, isDropTarget }) => (
         <div
           ref={blockRef}
-          className={`window-block${isDragging ? " dragging" : ""}`}
+          className={`window-block${isDragging ? " dragging" : ""}${isDropTarget ? " dd-win-over" : ""}`}
           data-win-key={winKey}
         >
-          {renderHeader(isDropTarget, handleRef)}
+          {renderHeader(false, handleRef)}
           <DroppableWinBody winKey={winKey}>
             {renderBody}
           </DroppableWinBody>

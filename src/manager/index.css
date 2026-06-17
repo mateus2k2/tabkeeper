@@ -316,7 +316,8 @@ html, body {
   border-radius: 6px;
   overflow: hidden;
 }
-.window-block.dragging { border-color: var(--accent); outline: 1px solid var(--accent); }
+.window-block.dragging  { border-color: var(--accent); outline: 1px solid var(--accent); }
+.window-block.dd-win-over { border-color: var(--accent); outline: 2px solid var(--accent); }
 
 /* Window header — default */
 .window-header {
@@ -794,7 +795,6 @@ mark { background: rgba(255,200,0,0.2); color: inherit; border-radius: 2px; padd
   transition: color 0.15s;
 }
 .win-drag-handle:hover { color: var(--text-sec); background: rgba(255,255,255,0.05); }
-.window-header.dd-win-over { outline: 2px solid var(--accent); outline-offset: -1px; border-radius: 4px; }
 
 
 .session-nav-item.dragging { background: var(--bg-sel-sidebar); border-left-color: var(--accent); outline: 1px solid var(--accent); }
