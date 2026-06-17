@@ -79,11 +79,13 @@ export function SelectionBar({ onLoadSessions }: Props) {
 
   function extractToNewWindow() {
     if (!session) return;
-    const tabsToMove = collectSelectedTabs(session);
-    if (!tabsToMove.length) return;
 
+    // Deep-clone first so tabSet refs match the objects we'll filter from s.windows
     const s: Session = { ...session, windows: deepClone(session.windows) };
     pushUndo({ type: "session", sessionId: s.id, session: deepClone(session) });
+
+    const tabsToMove = collectSelectedTabs(s);
+    if (!tabsToMove.length) return;
 
     const tabSet = new Set(tabsToMove);
     // Remove selected tabs from their current windows
@@ -112,9 +114,6 @@ export function SelectionBar({ onLoadSessions }: Props) {
 
   function extractToNewCollection() {
     if (!session) return;
-    const tabsToMove = collectSelectedTabs(session);
-    if (!tabsToMove.length) return;
-
     const defaultName = `${session.name} — Selection`;
     showModal(
       "Extract to new collection",
@@ -126,9 +125,11 @@ export function SelectionBar({ onLoadSessions }: Props) {
             const name = (document.getElementById("extract-col-name") as HTMLInputElement).value.trim() || defaultName;
             hideModal();
 
+            // Deep-clone first so tabSet refs match the objects we'll filter from s.windows
+            const originalSrc = deepClone(session);
             const s: Session = { ...session, windows: deepClone(session.windows) };
-            pushUndo({ type: "session", sessionId: s.id, session: deepClone(session) });
 
+            const tabsToMove = collectSelectedTabs(s);
             const tabSet = new Set(tabsToMove);
             s.windows = s.windows.map(win => ({
               ...win,
@@ -149,6 +150,13 @@ export function SelectionBar({ onLoadSessions }: Props) {
               windowCount: 1, tabCount: newTabs.length,
               windows: [{ tabs: newTabs }],
             };
+
+            pushUndo({
+              type: "extract-to-collection",
+              originalSrc,
+              modifiedSrc: deepClone(s),
+              newSession: deepClone(newSession),
+            });
 
             await Promise.all([
               send({ type: "importSessions", sessions: [newSession] }),

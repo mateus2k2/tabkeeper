@@ -65,7 +65,11 @@ export type UndoSnapshot =
   | { type: "re-delete"; ids: string[] }
   | { type: "reorder"; oldOrder: string[] }
   | { type: "merge"; srcSession: Session; dstSession: Session }
-  | { type: "re-merge"; srcId: string; mergedDstSession: Session };
+  | { type: "re-merge"; srcId: string; mergedDstSession: Session }
+  | { type: "extract-to-collection"; originalSrc: Session; modifiedSrc: Session; newSession: Session }
+  | { type: "re-extract-to-collection"; modifiedSrc: Session; newSession: Session }
+  | { type: "collection-merge"; originalTarget: Session; mergedTarget: Session; originalSources: Session[]; oldOrder: string[] }
+  | { type: "re-collection-merge"; mergedTarget: Session; sourceIds: string[] };
 
 // ─── App state ────────────────────────────────────────────────────────────────
 

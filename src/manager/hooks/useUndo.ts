@@ -77,6 +77,31 @@ export function useUndo() {
         await loadSessions();
         break;
       }
+      case "extract-to-collection": {
+        const redoSnapshot: UndoSnapshot = {
+          type: "re-extract-to-collection",
+          modifiedSrc: snap.modifiedSrc,
+          newSession: snap.newSession,
+        };
+        await send({ type: "updateSession", session: snap.originalSrc });
+        await send({ type: "deleteSession", id: snap.newSession.id });
+        dispatch({ type: "APPLY_UNDO", redoSnapshot });
+        await loadSessions();
+        break;
+      }
+      case "collection-merge": {
+        const redoSnapshot: UndoSnapshot = {
+          type: "re-collection-merge",
+          mergedTarget: snap.mergedTarget,
+          sourceIds: snap.originalSources.map(s => s.id),
+        };
+        await send({ type: "updateSession", session: snap.originalTarget });
+        for (const s of snap.originalSources) await send({ type: "updateSession", session: s });
+        await send({ type: "reorderSessions", order: snap.oldOrder });
+        dispatch({ type: "APPLY_UNDO", redoSnapshot });
+        await loadSessions();
+        break;
+      }
     }
     toast("Undone");
   }, [state, dispatch, toast, loadSessions]);
@@ -139,6 +164,39 @@ export function useUndo() {
         dispatch({ type: "APPLY_REDO", undoSnapshot });
         await loadSessions();
         if (state.view === snap.srcId) dispatch({ type: "SET_VIEW", view: snap.mergedDstSession.id });
+        break;
+      }
+      case "re-extract-to-collection": {
+        const undoSnapshot: UndoSnapshot = {
+          type: "extract-to-collection",
+          originalSrc: deepClone(state.sessions.find(s => s.id === snap.modifiedSrc.id) ?? snap.modifiedSrc),
+          modifiedSrc: snap.modifiedSrc,
+          newSession: snap.newSession,
+        };
+        await send({ type: "updateSession", session: snap.modifiedSrc });
+        await send({ type: "importSessions", sessions: [snap.newSession] });
+        dispatch({ type: "APPLY_REDO", undoSnapshot });
+        await loadSessions();
+        break;
+      }
+      case "re-collection-merge": {
+        const currentSources = state.sessions.filter(s => snap.sourceIds.includes(s.id));
+        const currentTarget = state.sessions.find(s => s.id === snap.mergedTarget.id);
+        const undoSnapshot: UndoSnapshot | null =
+          currentTarget
+            ? {
+                type: "collection-merge",
+                originalTarget: deepClone(currentTarget),
+                mergedTarget: snap.mergedTarget,
+                originalSources: currentSources.map(s => deepClone(s)),
+                oldOrder: state.sessions.map(s => s.id),
+              }
+            : null;
+        await send({ type: "updateSession", session: snap.mergedTarget });
+        for (const id of snap.sourceIds) await send({ type: "deleteSession", id });
+        dispatch({ type: "APPLY_REDO", undoSnapshot });
+        await loadSessions();
+        if (snap.sourceIds.includes(state.view)) dispatch({ type: "SET_VIEW", view: snap.mergedTarget.id });
         break;
       }
     }

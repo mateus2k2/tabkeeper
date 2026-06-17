@@ -188,6 +188,17 @@ html, body {
 }
 .sidebar-sel-bar.hidden { display: none; }
 .sidebar-sel-count { font-size: 11px; color: var(--text-sec); }
+.sidebar-sel-btn {
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text-sec);
+  font-size: 11px;
+  cursor: pointer;
+  margin-left: auto;
+}
+.sidebar-sel-btn:hover { background: var(--bg-hover); color: var(--text-pri); }
 .sidebar-sel-del {
   padding: 4px 10px;
   border-radius: 4px;
@@ -823,7 +834,8 @@ mark { background: rgba(255,200,0,0.2); color: inherit; border-radius: 2px; padd
 .session-nav-item.dragging .session-drag-handle { cursor: grabbing; }
 
 
-.session-nav-item.dragging { background: var(--bg-sel-sidebar); border-left-color: var(--accent); outline: 1px solid var(--accent); }
+
+.session-nav-item.dragging { position: relative; z-index: 5; background: var(--bg-sel-sidebar); border-left-color: var(--accent); outline: 1px solid var(--accent); }
 .session-nav-item.dd-session-over     { background: rgba(26,115,232,0.18); border-left-color: var(--accent); }
 .session-nav-item.dd-session-above    { box-shadow: 0 -2px 0 var(--accent); }
 .session-nav-item.dd-session-below    { box-shadow: 0 2px 0 var(--accent); }

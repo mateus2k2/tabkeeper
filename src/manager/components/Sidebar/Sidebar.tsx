@@ -9,7 +9,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useApp } from "../../context/AppContext";
 import { send } from "../../utils/messaging";
-import { tabCountLabel, deepClone } from "../../utils/helpers";
+import { tabCountLabel, deepClone, esc } from "../../utils/helpers";
 import type { Session } from "../../context/types";
 
 interface SidebarCounts {
@@ -81,7 +81,7 @@ function SortableSessionItem({
 // ─── Main Sidebar ────────────────────────────────────────────────────────────
 
 export function Sidebar({ onLoadSessions, counts }: Props) {
-  const { state, dispatch, toast, pushUndo } = useApp();
+  const { state, dispatch, toast, pushUndo, showModal, hideModal } = useApp();
   const { view, sessions, selectedSessionIds } = state;
 
 
@@ -132,6 +132,70 @@ export function Sidebar({ onLoadSessions, counts }: Props) {
     dispatch({ type: "SET_SELECTED_SESSIONS", ids: new Set() });
     if (ids.includes(view)) dispatch({ type: "SET_VIEW", view: "current" });
     await onLoadSessions();
+  }
+
+  // ─── Merge selected collections ───────────────────────────────────────────
+
+  function showMergeModal() {
+    const ids = [...selectedSessionIds];
+    const toMerge = sessions.filter(s => ids.includes(s.id));
+    if (toMerge.length < 2) return;
+
+    // Let the user pick which collection becomes the target (others fold into it)
+    const options = toMerge.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join("");
+    showModal(
+      `Merge ${toMerge.length} collections`,
+      `<p>All selected collections will be merged into:</p>
+       <select id="merge-target-select" style="width:100%;margin-top:8px;padding:6px 8px;background:var(--bg-input,#1e1e1e);color:var(--text-pri);border:1px solid var(--border);border-radius:6px;font-size:13px;">
+         ${options}
+       </select>`,
+      [
+        { label: "Cancel", cls: "btn-ghost", action: hideModal },
+        {
+          label: "Merge", cls: "btn-primary", action: async () => {
+            const targetId = (document.getElementById("merge-target-select") as HTMLSelectElement).value;
+            const target = sessions.find(s => s.id === targetId);
+            if (!target) return;
+            hideModal();
+
+            const sources = toMerge.filter(s => s.id !== targetId);
+
+            const extraWins = sources.flatMap(src =>
+              deepClone(src.windows).map(win => ({
+                ...win,
+                tabs: [...win.tabs].sort((a, b) => a.index - b.index).map((t, i) => ({
+                  ...t, index: i, groupId: -1, groupColor: undefined, groupTitle: undefined,
+                })),
+              }))
+            );
+            const merged = {
+              ...target,
+              windows: [...target.windows, ...extraWins],
+              tabCount: target.tabCount + sources.reduce((n, s) => n + s.tabCount, 0),
+              windowCount: target.windowCount + sources.reduce((n, s) => n + s.windowCount, 0),
+            };
+
+            pushUndo({
+              type: "collection-merge",
+              originalTarget: deepClone(target),
+              mergedTarget: merged,
+              originalSources: sources.map(s => deepClone(s)),
+              oldOrder: sessions.map(s => s.id),
+            });
+
+            await Promise.all([
+              send({ type: "updateSession", session: merged }),
+              ...sources.map(s => send({ type: "deleteSession", id: s.id })),
+            ]);
+
+            toast(`Merged into "${target.name}"`);
+            dispatch({ type: "SET_SELECTED_SESSIONS", ids: new Set() });
+            if (sources.some(s => s.id === view)) dispatch({ type: "SET_VIEW", view: target.id });
+            await onLoadSessions();
+          }
+        },
+      ]
+    );
   }
 
   // ─── Drag and drop (reorder) ──────────────────────────────────────────────
@@ -262,6 +326,9 @@ export function Sidebar({ onLoadSessions, counts }: Props) {
         {selectedSessionIds.size > 0 && (
           <div className="sidebar-sel-bar">
             <span className="sidebar-sel-count">{selectedSessionIds.size} selected</span>
+            {selectedSessionIds.size >= 2 && (
+              <button className="sidebar-sel-btn" onClick={showMergeModal}>Merge</button>
+            )}
             <button className="sidebar-sel-del" onClick={() => void deleteBulk()}>Delete</button>
           </div>
         )}
