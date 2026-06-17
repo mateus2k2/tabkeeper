@@ -3,6 +3,7 @@ import { useApp } from "../../context/AppContext";
 import { send } from "../../utils/messaging";
 import { formatDate, tabCountLabel, deepClone, esc } from "../../utils/helpers";
 import { exportSessionAsJson, exportSessionAsText } from "../../utils/download";
+import { parseTextImport } from "../../utils/import";
 import { SessionDnD } from "../dnd/SessionDnD";
 import { WindowBlock } from "./WindowBlock";
 import type { Session, TabRenderEntry } from "../../context/types";
@@ -62,6 +63,8 @@ function DropdownButton({ label, items, cls = "btn-ghost" }: { label: string; it
 export function SessionView({ session, onLoadSessions }: Props) {
   const { state, dispatch, showModal, hideModal, toast, pushUndo } = useApp();
   const [treeEnabled, setTreeEnabled] = useState(false);
+  const importJsonRef = useRef<HTMLInputElement>(null);
+  const importTextRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     void send({ type: "getConfig" }).then((cfg: { ifSupportTst?: boolean }) => {
@@ -157,6 +160,73 @@ export function SessionView({ session, onLoadSessions }: Props) {
     );
   }
 
+  async function appendWindowsToSession(extraWindows: Session["windows"]) {
+    if (!extraWindows.length) { toast("Nothing to import"); return; }
+    pushUndo({ type: "session", sessionId: session.id, session: deepClone(session) });
+    const updated: Session = {
+      ...session,
+      windows: [...session.windows, ...extraWindows],
+      tabCount: session.tabCount + extraWindows.reduce((n, w) => n + w.tabs.length, 0),
+      windowCount: session.windowCount + extraWindows.length,
+    };
+    await send({ type: "updateSession", session: updated });
+    toast("Imported into collection");
+    await onLoadSessions();
+  }
+
+  function importJsonIntoCollection() {
+    const input = importJsonRef.current;
+    if (!input) return;
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      input.value = ""; input.onchange = null;
+      if (!file) return;
+      try {
+        const data = JSON.parse(await file.text());
+        const sessions: Session[] = Array.isArray(data) ? data : [data];
+        const wins = sessions.flatMap(s => s.windows ?? []);
+        await appendWindowsToSession(wins);
+      } catch { toast("Import failed — invalid JSON"); }
+    };
+    input.click();
+  }
+
+  function importTextIntoCollection() {
+    const input = importTextRef.current;
+    if (!input) return;
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      input.value = ""; input.onchange = null;
+      if (!file) return;
+      try {
+        const sessions = parseTextImport(await file.text());
+        const wins = sessions.flatMap(s => s.windows ?? []);
+        await appendWindowsToSession(wins);
+      } catch { toast("Import failed — check file format"); }
+    };
+    input.click();
+  }
+
+  function importUrlListIntoCollection() {
+    showModal(
+      "Import URL list into collection",
+      `<textarea id="import-url-list" rows="8" placeholder="Paste one URL per line…"></textarea>`,
+      [
+        { label: "Cancel", cls: "btn-ghost", action: hideModal },
+        {
+          label: "Import", cls: "btn-primary", action: async () => {
+            const ta = document.getElementById("import-url-list") as HTMLTextAreaElement;
+            const urls = ta.value.split("\n").map(u => u.trim()).filter(u => u.startsWith("http"));
+            hideModal();
+            if (!urls.length) { toast("No valid URLs found"); return; }
+            const win = { tabs: urls.map((url, i) => ({ index: i, url, title: url, id: undefined })) };
+            await appendWindowsToSession([win]);
+          }
+        },
+      ]
+    );
+  }
+
   async function duplicateSession() {
     const copy: Session = { ...deepClone(session), id: genId(), name: `${session.name} (copy)`, date: Date.now() };
     await send({ type: "importSessions", sessions: [copy] });
@@ -187,6 +257,10 @@ export function SessionView({ session, onLoadSessions }: Props) {
             { label: "Duplicate", action: () => void duplicateSession() },
             { label: "Replace with current browser", action: showReplaceModal },
             { separator: true },
+            { label: "Import JSON into collection",     action: importJsonIntoCollection },
+            { label: "Import text into collection",     action: importTextIntoCollection },
+            { label: "Import URL list into collection", action: importUrlListIntoCollection },
+            { separator: true },
             { label: "Delete", action: showDeleteModal, danger: true },
           ]} />
         </div>
@@ -208,6 +282,8 @@ export function SessionView({ session, onLoadSessions }: Props) {
           />
         ))}
       </div>
+      <input ref={importJsonRef} type="file" accept=".json,application/json" style={{ display: "none" }} />
+      <input ref={importTextRef} type="file" accept=".txt,text/plain" style={{ display: "none" }} />
     </SessionDnD>
   );
 }

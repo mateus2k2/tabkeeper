@@ -21,12 +21,18 @@ export function TopBar({ onToggleSidebar, onOpenSettings, onOpenSync }: Props) {
         </svg>
       </button>
 
-      <div className="topbar-logo">
+      <a
+        className="topbar-logo"
+        href="https://github.com/mateus2k2/tabkeeper/"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="TabKeeper on GitHub"
+      >
         <svg className="logo-icon" viewBox="0 0 32 32" fill="none">
           <rect width="32" height="32" rx="6" fill="#1a73e8"/>
           <text x="16" y="23" fontFamily="Arial,sans-serif" fontSize="20" fontWeight="bold" fill="white" textAnchor="middle">S</text>
         </svg>
-      </div>
+      </a>
 
       <div className="topbar-search">
         <svg className="search-icon" viewBox="0 0 20 20" fill="none">

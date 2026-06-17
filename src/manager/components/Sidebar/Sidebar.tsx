@@ -100,16 +100,23 @@ export function Sidebar({ onLoadSessions, counts }: Props) {
 
   // ─── Session selection ──────────────────────────────────────────────────────
 
-  function handleSessionClick(e: React.MouseEvent, session: Session, sessionIds: string[]) {
+  function handleSessionClick(e: React.MouseEvent, session: Session, filteredIds: string[]) {
     if (e.shiftKey && state.lastSessionId) {
-      const a = sessionIds.indexOf(state.lastSessionId);
-      const b = sessionIds.indexOf(session.id);
+      // Range-select within the visible (filtered) list
+      const a = filteredIds.indexOf(state.lastSessionId);
+      const b = filteredIds.indexOf(session.id);
+      if (a === -1 || b === -1) return;
       const [from, to] = a < b ? [a, b] : [b, a];
       const newIds = new Set(selectedSessionIds);
-      for (let i = from; i <= to; i++) newIds.add(sessionIds[i]!);
+      for (let i = from; i <= to; i++) newIds.add(filteredIds[i]!);
       dispatch({ type: "SET_SELECTED_SESSIONS", ids: newIds });
+      dispatch({ type: "SET_LAST_SESSION_ID", id: session.id });
     } else if (e.ctrlKey || e.metaKey) {
       const newIds = new Set(selectedSessionIds);
+      // If starting a fresh multi-select from a normal navigation, anchor the current item too
+      if (newIds.size === 0 && state.lastSessionId && state.lastSessionId !== session.id) {
+        newIds.add(state.lastSessionId);
+      }
       if (newIds.has(session.id)) newIds.delete(session.id);
       else newIds.add(session.id);
       dispatch({ type: "SET_SELECTED_SESSIONS", ids: newIds });
@@ -214,7 +221,6 @@ export function Sidebar({ onLoadSessions, counts }: Props) {
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
-  const sessionIds = sessions.map(s => s.id);
   const query = state.searchQuery.toLowerCase();
   const filtered = query
     ? sessions.filter(s =>
@@ -224,6 +230,7 @@ export function Sidebar({ onLoadSessions, counts }: Props) {
         ))
       )
     : sessions;
+  const filteredIds = filtered.map(s => s.id);
 
   return (
     <aside className="sidebar">
@@ -308,7 +315,7 @@ export function Sidebar({ onLoadSessions, counts }: Props) {
             modifiers={[({ transform }) => ({ ...transform, x: 0 })]}
             onDragEnd={onDragEnd}
           >
-            <SortableContext items={sessionIds} strategy={verticalListSortingStrategy}>
+            <SortableContext items={filteredIds} strategy={verticalListSortingStrategy}>
               {filtered.map(session => (
                 <SortableSessionItem
                   key={session.id}
@@ -316,7 +323,7 @@ export function Sidebar({ onLoadSessions, counts }: Props) {
                   isSelected={selectedSessionIds.has(session.id)}
                   isCurrentView={view === session.id}
                   query={query}
-                  onClick={e => handleSessionClick(e, session, sessionIds)}
+                  onClick={e => handleSessionClick(e, session, filteredIds)}
                 />
               ))}
             </SortableContext>

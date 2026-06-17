@@ -142,7 +142,7 @@ export function CurrentView({ onLoadSessions }: Props) {
   async function handleImportUrlList() {
     showModal(
       "Import from URL list",
-      `<textarea id="url-list-input" rows="8" placeholder="Paste one URL per line…" style="width:100%;box-sizing:border-box;resize:vertical;"></textarea>`,
+      `<textarea id="url-list-input" rows="8" placeholder="Paste one URL per line…"></textarea>`,
       [
         { label: "Cancel", cls: "btn-ghost", action: hideModal },
         {

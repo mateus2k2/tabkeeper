@@ -184,7 +184,28 @@ export function WindowBlock({
 
     if (editSession) {
       const ungroupTab = async () => {
+        const srcGid = tab.groupId ?? -1;
         pushUndo({ type: "session", sessionId: editSession.id, session: deepClone(editSession) });
+
+        const winTabs = [...(editSession.windows[winIdx]?.tabs ?? [])].sort((a, b) => a.index - b.index);
+        const tabPos = winTabs.indexOf(tab);
+
+        // If there are group members after this tab, move the tab to after the last group member
+        // so the group stays visually contiguous
+        const hasGroupAfter = tabPos !== -1 && winTabs.slice(tabPos + 1).some(t => (t.groupId ?? -1) === srcGid);
+        if (hasGroupAfter) {
+          let lastGroupPos = tabPos;
+          for (let i = winTabs.length - 1; i > tabPos; i--) {
+            if ((winTabs[i]?.groupId ?? -1) === srcGid) { lastGroupPos = i; break; }
+          }
+          winTabs.splice(tabPos, 1);
+          // After removing at tabPos (< lastGroupPos), last group member shifted left by 1,
+          // so insert at lastGroupPos (= (lastGroupPos-1) + 1) to land after it.
+          winTabs.splice(lastGroupPos, 0, tab);
+          winTabs.forEach((t, i) => { t.index = i; });
+          if (editSession.windows[winIdx]) editSession.windows[winIdx].tabs = winTabs;
+        }
+
         tab.groupId = -1;
         tab.groupColor = undefined;
         tab.groupTitle = undefined;

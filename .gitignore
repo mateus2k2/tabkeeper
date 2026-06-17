@@ -3,3 +3,4 @@ web-ext-artifacts
 amo-metadata.json
 references
 node_modules
+dist
