@@ -21,7 +21,7 @@ interface Props {
 export function SortableTab({
   id, tab, winKey, index, tabKey, query, selectable, isLiveTab, editMode, selectedKeys, depth, onUngroup,
 }: Props) {
-  const { ref, isDragging } = useSortable({
+  const { ref, handleRef, isDragging } = useSortable({
     id,
     index,
     type: "item",
@@ -36,6 +36,7 @@ export function SortableTab({
   return (
     <TabRow
       nodeRef={ref}
+      handleRef={handleRef}
       isDragging={isDragging}
       tab={tab}
       tabKey={tabKey}

@@ -12,6 +12,7 @@ interface Props {
   isLiveTab?: boolean;
   editMode?: boolean;
   nodeRef?: ((el: Element | null) => void) | React.Ref<HTMLDivElement>;
+  handleRef?: ((el: Element | null) => void) | React.Ref<HTMLDivElement>;
   isDragging?: boolean;
   depth?: number;
   onUngroup?: () => void;
@@ -19,7 +20,7 @@ interface Props {
 
 export function TabRow({
   tab, tabKey, groupColor, query, selectable = true, isLiveTab = false,
-  editMode = false, nodeRef, isDragging = false, depth = 0, onUngroup,
+  editMode = false, nodeRef, handleRef, isDragging = false, depth = 0, onUngroup,
 }: Props) {
   const { state, dispatch } = useApp();
   const isSelected = state.selectedTabKeys.has(tabKey);
@@ -107,6 +108,22 @@ export function TabRow({
       onMouseDown={e => { if (e.shiftKey) e.preventDefault(); }}
       onClick={handleClick}
     >
+      {editMode && (
+        <div
+          ref={handleRef as React.Ref<HTMLDivElement>}
+          className="tab-drag-handle"
+          title="Drag to reorder"
+        >
+          <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
+            <circle cx="5" cy="4" r="1.2"/>
+            <circle cx="11" cy="4" r="1.2"/>
+            <circle cx="5" cy="8" r="1.2"/>
+            <circle cx="11" cy="8" r="1.2"/>
+            <circle cx="5" cy="12" r="1.2"/>
+            <circle cx="11" cy="12" r="1.2"/>
+          </svg>
+        </div>
+      )}
       {faviconUrl ? (
         <img
           className="tab-favicon"

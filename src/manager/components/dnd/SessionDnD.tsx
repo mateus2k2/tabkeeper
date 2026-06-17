@@ -1,6 +1,7 @@
 import { createContext, useContext, useRef, useState, useEffect } from "react";
 import { DragDropProvider, DragOverlay } from "@dnd-kit/react";
 import { RestrictToVerticalAxis } from "@dnd-kit/abstract/modifiers";
+import { PointerSensor, PointerActivationConstraints, KeyboardSensor } from "@dnd-kit/dom";
 import { move } from "@dnd-kit/helpers";
 import { useApp } from "../../context/AppContext";
 import { send } from "../../utils/messaging";
@@ -29,6 +30,21 @@ function tabContentHash(tab: Tab): string {
   }
   return (h >>> 0).toString(36);
 }
+
+// ─── Sensor config — longer touch tolerance so small finger wobble doesn't cancel drag ───
+
+const sensors = [
+  PointerSensor.configure({
+    activationConstraints(event: PointerEvent) {
+      if (event.pointerType === "touch") {
+        return [new PointerActivationConstraints.Delay({ value: 200, tolerance: 15 })];
+      }
+      // mouse/pen: start immediately when a handle is grabbed, small distance otherwise
+      return [new PointerActivationConstraints.Distance({ value: 5 })];
+    },
+  }),
+  KeyboardSensor,
+];
 
 // ─── SessionDnD ───────────────────────────────────────────────────────────────
 
@@ -269,6 +285,7 @@ export function SessionDnD({ session, onUpdate, children }: Props) {
   return (
     <DragStateCtx.Provider value={{ tabOrder, tabMap: tabMapRef.current }}>
       <DragDropProvider
+        sensors={sensors}
         modifiers={[RestrictToVerticalAxis]}
         onDragStart={onDragStart}
         onDragOver={onDragOver}

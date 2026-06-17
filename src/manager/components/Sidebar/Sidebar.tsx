@@ -31,7 +31,7 @@ function SortableSessionItem({
   session: Session; isSelected: boolean; isCurrentView: boolean; query: string;
   onClick: (e: React.MouseEvent) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: session.id,
   });
 
@@ -50,8 +50,22 @@ function SortableSessionItem({
       data-session-id={session.id}
       onClick={onClick}
       {...attributes}
-      {...listeners}
     >
+      <div
+        ref={setActivatorNodeRef}
+        className="session-drag-handle"
+        title="Drag to reorder"
+        {...listeners}
+      >
+        <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
+          <circle cx="5" cy="4" r="1.2"/>
+          <circle cx="11" cy="4" r="1.2"/>
+          <circle cx="5" cy="8" r="1.2"/>
+          <circle cx="11" cy="8" r="1.2"/>
+          <circle cx="5" cy="12" r="1.2"/>
+          <circle cx="11" cy="12" r="1.2"/>
+        </svg>
+      </div>
       <svg viewBox="0 0 16 16" fill="none">
         <rect x="1" y="2" width="14" height="12" rx="2" stroke="currentColor" strokeWidth="1.2"/>
         <line x1="1" y1="6" x2="15" y2="6" stroke="currentColor" strokeWidth="1.2"/>
@@ -73,7 +87,7 @@ export function Sidebar({ onLoadSessions, counts }: Props) {
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 15 } })
   );
 
   function setView(v: string) {
