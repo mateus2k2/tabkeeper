@@ -16,9 +16,11 @@ export interface DragState {
   tabOrder: Record<string, string[]>;
   // maps tab ID → tab object
   tabMap: Record<string, Tab>;
+  // winKey of the window a tab is being dragged FROM (null when not dragging)
+  dragSourceWinKey: string | null;
 }
 
-const DragStateCtx = createContext<DragState>({ tabOrder: {}, tabMap: {} });
+const DragStateCtx = createContext<DragState>({ tabOrder: {}, tabMap: {}, dragSourceWinKey: null });
 export const useDragState = () => useContext(DragStateCtx);
 
 // ─── Stable tab ID from content so React keys don't move when order changes ───
@@ -59,6 +61,7 @@ export function SessionDnD({ session, onUpdate, children }: Props) {
   const { dispatch, toast, pushUndo, showModal, hideModal } = useApp();
 
   const [tabOrder, setTabOrder] = useState<Record<string, string[]>>({});
+  const [dragSourceWinKey, setDragSourceWinKey] = useState<string | null>(null);
   const tabOrderRef = useRef<Record<string, string[]>>({});
   const tabMapRef = useRef<Record<string, Tab>>({});
   const prevTabOrder = useRef<Record<string, string[]>>({});
@@ -87,9 +90,14 @@ export function SessionDnD({ session, onUpdate, children }: Props) {
     tabMapRef.current = dataMap;
   }, [session]);
 
-  function onDragStart() {
+  function onDragStart(event: any) {
     prevTabOrder.current = tabOrderRef.current;
     prevTabMap.current = { ...tabMapRef.current };
+    const draggedId = event.operation?.source?.id as string | undefined;
+    const srcWin = draggedId
+      ? (Object.entries(tabOrderRef.current).find(([, ids]) => ids.includes(draggedId))?.[0] ?? null)
+      : null;
+    setDragSourceWinKey(srcWin);
   }
 
   function onDragOver(event: any) {
@@ -97,38 +105,34 @@ export function SessionDnD({ session, onUpdate, children }: Props) {
     if (source?.type !== "item") return;
 
     const draggedId = source.id as string;
+    const origWinKey = Object.entries(prevTabOrder.current).find(
+      ([, ids]) => ids.includes(draggedId)
+    )?.[0];
+
     const newOrder = move(tabOrderRef.current, event);
 
-    // Reflect the dragged tab's new group membership live so group labels update during drag
-    for (const [winKey, tabIds] of Object.entries(newOrder)) {
+    // Reflect the dragged tab's group membership live (same logic for both same- and
+    // cross-window): inherit from neighbors so the group label preview stays correct.
+    for (const [, tabIds] of Object.entries(newOrder)) {
       const idx = tabIds.indexOf(draggedId);
       if (idx === -1) continue;
 
-      const origWinKey = Object.entries(prevTabOrder.current).find(
-        ([, ids]) => ids.includes(draggedId)
-      )?.[0];
-      const movedAcrossWindow = origWinKey !== winKey;
-
-      let groupId = -1;
-      let groupColor: string | undefined;
-      let groupTitle: string | undefined;
-
-      if (!movedAcrossWindow) {
-        const aboveId = idx > 0 ? tabIds[idx - 1] : null;
-        const belowId = idx < tabIds.length - 1 ? tabIds[idx + 1] : null;
-        const above = aboveId ? prevTabMap.current[aboveId] : null;
-        const below = belowId ? prevTabMap.current[belowId] : null;
-        const srcGroup =
-          above?.groupId && above.groupId !== -1 ? above :
-          below?.groupId && below.groupId !== -1 ? below : null;
-        groupId = srcGroup?.groupId ?? -1;
-        groupColor = srcGroup?.groupColor;
-        groupTitle = srcGroup?.groupTitle;
-      }
+      const aboveId = idx > 0 ? tabIds[idx - 1] : null;
+      const belowId = idx < tabIds.length - 1 ? tabIds[idx + 1] : null;
+      const above = aboveId ? prevTabMap.current[aboveId] : null;
+      const below = belowId ? prevTabMap.current[belowId] : null;
+      const srcGroup =
+        above?.groupId && above.groupId !== -1 ? above :
+        below?.groupId && below.groupId !== -1 ? below : null;
 
       tabMapRef.current = {
         ...tabMapRef.current,
-        [draggedId]: { ...tabMapRef.current[draggedId], groupId, groupColor, groupTitle },
+        [draggedId]: {
+          ...tabMapRef.current[draggedId],
+          groupId: srcGroup?.groupId ?? -1,
+          groupColor: srcGroup?.groupColor,
+          groupTitle: srcGroup?.groupTitle,
+        },
       };
       break;
     }
@@ -141,6 +145,8 @@ export function SessionDnD({ session, onUpdate, children }: Props) {
     const { operation, canceled } = event;
     const source = operation?.source;
     const target = operation?.target;
+
+    setDragSourceWinKey(null);
 
     if (canceled) {
       if (source?.type === "item") {
@@ -214,8 +220,19 @@ export function SessionDnD({ session, onUpdate, children }: Props) {
             const movedAcrossWindow = originalWindowOf[tabId] !== winKey;
 
             if (movedAcrossWindow) {
-              // Cross-window move: always clear group
-              return { ...tab, index: idx, groupId: -1, groupColor: undefined, groupTitle: undefined };
+              // Cross-window move: inherit group from neighbors (same as same-window logic)
+              // so that dropping inside a group joins it rather than splitting it.
+              const aboveId = idx > 0 ? tabIds[idx - 1] : null;
+              const belowId = idx < tabIds.length - 1 ? tabIds[idx + 1] : null;
+              const above = aboveId ? tabMapRef.current[aboveId] : null;
+              const below = belowId ? tabMapRef.current[belowId] : null;
+              const srcGroup = above?.groupId && above.groupId !== -1 ? above : (below?.groupId && below.groupId !== -1 ? below : null);
+              return {
+                ...tab, index: idx,
+                groupId: srcGroup?.groupId ?? -1,
+                groupColor: srcGroup?.groupColor,
+                groupTitle: srcGroup?.groupTitle,
+              };
             }
 
             if (tabId === draggedTabId) {
@@ -284,7 +301,7 @@ export function SessionDnD({ session, onUpdate, children }: Props) {
   }
 
   return (
-    <DragStateCtx.Provider value={{ tabOrder, tabMap: tabMapRef.current }}>
+    <DragStateCtx.Provider value={{ tabOrder, tabMap: tabMapRef.current, dragSourceWinKey }}>
       <DragDropProvider
         sensors={sensors}
         modifiers={[RestrictToVerticalAxis, RestrictToElement.configure({ element: () => document.querySelector(".content-area") })]}

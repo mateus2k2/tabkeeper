@@ -109,7 +109,7 @@ export function TabRow({
     <div
       ref={nodeRef as React.Ref<HTMLDivElement>}
       className={`tab-row${isSelected ? " selected" : ""}${isHidden ? " search-hidden" : ""}${depth > 0 ? " tab-tree-child" : ""}`}
-      style={{ ...borderStyle, ...depthStyle }}
+      style={{ ...borderStyle, ...depthStyle, ...(isDragging ? { backgroundColor: "#1e3350" } : {}) }}
       data-tab-key={tabKey}
       data-dragging={isDragging || undefined}
       tabIndex={selectable ? 0 : undefined}

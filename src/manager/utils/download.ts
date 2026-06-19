@@ -7,8 +7,12 @@ async function downloadFileSaveAs(filename: string, content: string, mimeType: s
   try {
     // Try the downloads API first (shows a Save As dialog)
     await browser.downloads.download({ url, filename, saveAs: true });
-  } catch {
-    // Fallback: must be in the document for Firefox to honour the download attribute
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (err) {
+    // Only fall back to <a> click if the API itself is unavailable (not when user cancels)
+    const msg = err instanceof Error ? err.message : String(err);
+    const isCancelled = /cancel/i.test(msg) || /user/i.test(msg);
+    if (isCancelled) { URL.revokeObjectURL(url); return; }
     const a = document.createElement("a");
     a.href = url;
     a.download = filename;
@@ -16,13 +20,19 @@ async function downloadFileSaveAs(filename: string, content: string, mimeType: s
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+function dateTimeStamp(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}`;
 }
 
 export function exportSessionAsJson(session: Session): void {
   const json = JSON.stringify([session], null, 2);
-  void downloadFileSaveAs(`${safeFilename(session.name)}.json`, json, "application/json");
+  void downloadFileSaveAs(`${safeFilename(session.name)}_${dateTimeStamp()}.json`, json, "application/json");
 }
 
 export function exportSessionAsText(session: Session): void {
@@ -54,11 +64,10 @@ export function exportSessionAsText(session: Session): void {
     }
   }
 
-  void downloadFileSaveAs(`${safeFilename(session.name)}.txt`, lines.join("\n"), "text/plain");
+  void downloadFileSaveAs(`${safeFilename(session.name)}_${dateTimeStamp()}.txt`, lines.join("\n"), "text/plain");
 }
 
 export async function exportBackup(data: Record<string, unknown>): Promise<void> {
   const json = JSON.stringify({ ...data, version: 1, exportedAt: Date.now() }, null, 2);
-  const date = new Date().toISOString().slice(0, 10);
-  await downloadFileSaveAs(`tabkeeper-backup-${date}.json`, json, "application/json");
+  await downloadFileSaveAs(`tabkeeper-backup_${dateTimeStamp()}.json`, json, "application/json");
 }

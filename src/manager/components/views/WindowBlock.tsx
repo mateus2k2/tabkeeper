@@ -83,18 +83,22 @@ function WindowDragDropWrapper({
 
 // Only rendered inside DragDropProvider (edit mode).
 // Low-priority drop zone at the bottom of a window for cross-window tab drops.
+// Elevated to High priority when the window is the empty drag source so @dnd-kit
+// prefers it over items in other windows, allowing the user to drag the tab back.
 function DroppableWinBody({
   winKey,
+  elevated,
   children,
 }: {
   winKey: string;
+  elevated?: boolean;
   children: (isDropTarget: boolean) => React.ReactNode;
 }) {
   const { ref, isDropTarget } = useDroppable({
     id: `body-${winKey}`,
     type: "column",
     accept: "item",
-    collisionPriority: CollisionPriority.Low,
+    collisionPriority: elevated ? CollisionPriority.High : CollisionPriority.Low,
   });
 
   return (
@@ -109,7 +113,7 @@ export function WindowBlock({
   editSession = null, isLiveTab = false, treeEnabled = false, onSessionUpdate, onSaveWindow, onCloseWindow,
 }: Props) {
   const { state, dispatch, showModal, hideModal, toast, pushUndo } = useApp();
-  const { tabOrder, tabMap } = useDragState();
+  const { tabOrder, tabMap, dragSourceWinKey } = useDragState();
   const [collapsed, setCollapsed] = useState(false);
 
   // In edit mode, use optimistic tab order from DnD context; fall back to session data
@@ -205,10 +209,41 @@ export function WindowBlock({
 
     if (gid !== -1 && gid !== lastGroupId) {
       const hex = grpHex(resolvedColor ?? "grey");
+      const capturedGid = gid;
+      const capturedTitle = resolvedTitle;
       rows.push(
-        <div key={`grp-${gid}-${ti}`} className="tab-group-label"
-          style={{ backgroundColor: hexToRgba(hex, 0.15), borderLeftColor: hex, color: hex }}>
+        <div key={`grp-${gid}-${ti}`} className={`tab-group-label${editSession ? " tab-group-label-editable" : ""}`}
+          style={{ backgroundColor: hexToRgba(hex, 0.15), borderLeftColor: hex, color: hex }}
+          onClick={editSession ? () => {
+            showModal(
+              "Rename group",
+              `<input type="text" id="grp-rename-input" value="${esc(capturedTitle === "Group" ? "" : capturedTitle)}" placeholder="Group name" />`,
+              [
+                { label: "Cancel", cls: "btn-ghost", action: hideModal },
+                {
+                  label: "Rename", cls: "btn-primary", action: async () => {
+                    const newName = (document.getElementById("grp-rename-input") as HTMLInputElement).value.trim();
+                    if (!editSession) return;
+                    pushUndo({ type: "session", sessionId: editSession.id, session: deepClone(editSession) });
+                    editSession.windows[winIdx]?.tabs
+                      .filter(t => (t.groupId ?? -1) === capturedGid)
+                      .forEach(t => { t.groupTitle = newName || undefined; });
+                    hideModal();
+                    await send({ type: "updateSession", session: editSession });
+                    toast("Group renamed");
+                    onSessionUpdate?.();
+                  }
+                },
+              ]
+            );
+          } : undefined}>
           {resolvedTitle}
+          {editSession && (
+            <svg className="tab-group-label-edit-icon" viewBox="0 0 16 16" fill="none" width="10" height="10">
+              <path d="M11 2.5a1.5 1.5 0 0 1 2.12 0l.38.38a1.5 1.5 0 0 1 0 2.12L5 13.5 2 14l.5-3L11 2.5Z"
+                stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
         </div>
       );
     }
@@ -382,12 +417,15 @@ export function WindowBlock({
   }
 
   function renderBody(isBodyOver = false) {
+    // When this window is the drag source and all tabs have been dragged out,
+    // keep a visible drop zone so the user can drag the tab back.
+    const isDragSourceEmpty = dragSourceWinKey === winKey && currentTabs.length === 0;
     return (
       <div
         className={`window-body${isBodyOver ? " dd-win-body-over" : ""}`}
         style={collapsed ? { display: "none" } : undefined}
       >
-        {rows}
+        {isDragSourceEmpty ? <div className="window-drag-source-placeholder" /> : rows}
       </div>
     );
   }
@@ -412,7 +450,7 @@ export function WindowBlock({
           data-win-key={winKey}
         >
           {renderHeader(false, handleRef)}
-          <DroppableWinBody winKey={winKey}>
+          <DroppableWinBody winKey={winKey} elevated={dragSourceWinKey === winKey && currentTabs.length === 0}>
             {renderBody}
           </DroppableWinBody>
         </div>
