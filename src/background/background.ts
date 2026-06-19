@@ -304,15 +304,7 @@ async function openSession(session, mode = "newWindow") {
     if (isFirst && mode === "currentWindow") {
       const [activeTab] = await browser.tabs.query({ currentWindow: true, active: true });
       targetWindowId = activeTab.windowId;
-
-      const existingTabs = await browser.tabs.query({ windowId: targetWindowId });
-      const keepTabId = existingTabs[0].id;
-      if (existingTabs.length > 1) {
-        await browser.tabs.remove(existingTabs.slice(1).map(t => t.id));
-      }
-
-      await createTabsInWindow(win, targetWindowId, true);
-      await browser.tabs.remove(keepTabId);
+      await createTabsInWindow(win, targetWindowId, false);
     } else {
       if (!windowsSupported) {
         // Android: no multi-window support — open tabs in the current window
@@ -359,6 +351,9 @@ async function createTabsInWindow(win, windowId, isCurrentWindow) {
   for (const tab of sortedTabs) {
     let url = tab.url;
     if (url === "about:newtab" || url === "about:blank") url = undefined;
+    // about: pages other than newtab/blank cannot be opened by extensions — Firefox
+    // may silently open a blank tab instead of throwing, so redirect proactively.
+    if (url && /^about:/i.test(url)) url = placeholderUrl(url, tab.title || "");
 
     const createOpts = {
       windowId,

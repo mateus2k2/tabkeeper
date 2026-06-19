@@ -128,7 +128,6 @@ export function CurrentView({ onLoadSessions, refreshKey }: Props) {
       });
     });
     dispatch({ type: "SET_TAB_RENDER_ORDER", order });
-    dispatch({ type: "SET_SELECTED_TABS", keys: new Set() });
   }, [data, dispatch]);
 
   useEffect(() => {

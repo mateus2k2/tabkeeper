@@ -90,7 +90,12 @@ export function TabRow({
         await browser.windows.update(wid, { focused: true });
       }
     } else if (tab.url) {
-      await browser.tabs.create({ url: tab.url });
+      let url = tab.url;
+      if (/^about:/i.test(url)) {
+        const base = browser.runtime.getURL("placeholder/index.html");
+        url = `${base}?url=${encodeURIComponent(url)}&title=${encodeURIComponent(tab.title ?? "")}`;
+      }
+      await browser.tabs.create({ url });
     }
   }
 

@@ -187,15 +187,20 @@ export function SelectionBar({ onLoadSessions, onRefreshCurrent }: Props) {
     onRefreshCurrent?.();
   }
 
-  async function saveLiveWindowsAsCollection() {
-    const selectedWinIndices = new Set<number>();
-    for (const key of selectedTabKeys) {
+  async function saveSelectionAsCollection() {
+    // Group selected tabs by window index, preserving multi-window structure
+    const winTabMap = new Map<number, Tab[]>();
+    for (const { key, tab } of state.tabRenderOrder) {
+      if (!selectedTabKeys.has(key)) continue;
       const wi = parseInt(key.split(":")[0]);
-      if (!isNaN(wi)) selectedWinIndices.add(wi);
+      if (!winTabMap.has(wi)) winTabMap.set(wi, []);
+      winTabMap.get(wi)!.push(tab);
     }
+    if (!winTabMap.size) { toast("Nothing to save"); return; }
+
     const defaultName = new Date().toLocaleString();
     showModal(
-      "Save as collection",
+      "Save selection as collection",
       `<input type="text" id="save-live-name" value="${esc(defaultName)}" placeholder="Collection name" />`,
       [
         { label: "Cancel", cls: "btn-ghost", action: hideModal },
@@ -203,14 +208,14 @@ export function SelectionBar({ onLoadSessions, onRefreshCurrent }: Props) {
           label: "Save", cls: "btn-primary", action: async () => {
             const name = (document.getElementById("save-live-name") as HTMLInputElement).value.trim() || defaultName;
             hideModal();
-            const cur = await send({ type: "getCurrentState" }) as { windows: SessionWindow[] };
-            const windows = (cur?.windows ?? []).filter((_, i) => selectedWinIndices.has(i));
-            if (!windows.length) { toast("Nothing to save"); return; }
+            const windows: SessionWindow[] = [...winTabMap.values()].map(tabs => ({
+              tabs: tabs.map((t, i) => ({ ...t, index: i })),
+            }));
             const newSession: Session = {
               id: genId(), name, date: Date.now(),
               windowCount: windows.length,
               tabCount: windows.reduce((n, w) => n + w.tabs.length, 0),
-              windows: deepClone(windows),
+              windows,
             };
             await send({ type: "importSessions", sessions: [newSession] });
             toast("Saved as collection");
@@ -240,7 +245,7 @@ export function SelectionBar({ onLoadSessions, onRefreshCurrent }: Props) {
       )}
       {view === "current" && (
         <>
-          <button className="sel-btn" onClick={() => void saveLiveWindowsAsCollection()}>
+          <button className="sel-btn" onClick={() => void saveSelectionAsCollection()}>
             Save as collection
           </button>
           <button className="sel-btn sel-remove" onClick={() => void closeInBrowser()}>
