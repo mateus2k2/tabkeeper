@@ -78,27 +78,46 @@ export function SelectionBar({ onLoadSessions, onRefreshCurrent }: Props) {
     clearSelection();
   }
 
-  function getSelectedUrls(): string[] {
-    if (!session) return [];
-    const urls: string[] = [];
-    session.windows.forEach((win, wi) => {
-      [...win.tabs].sort((a, b) => a.index - b.index).forEach((tab, ti) => {
-        if (selectedTabKeys.has(`${wi}:${ti}`) && tab.url) urls.push(tab.url);
-      });
-    });
-    return urls;
+  function safeUrl(tab: Tab): string | null {
+    if (!tab.url) return null;
+    if (/^about:/i.test(tab.url)) {
+      const base = browser.runtime.getURL("placeholder/index.html");
+      return `${base}?url=${encodeURIComponent(tab.url)}&title=${encodeURIComponent(tab.title ?? "")}`;
+    }
+    return tab.url;
   }
 
   async function openInNewWindow() {
-    const urls = getSelectedUrls();
-    if (!urls.length) return;
-    await browser.windows.create({ url: urls });
+    if (!session) return;
+    const winGroups: { urls: string[]; incognito: boolean }[] = [];
+    session.windows.forEach((win, wi) => {
+      const urls = [...win.tabs]
+        .sort((a, b) => a.index - b.index)
+        .filter((_, ti) => selectedTabKeys.has(`${wi}:${ti}`))
+        .map(safeUrl)
+        .filter((u): u is string => !!u);
+      if (urls.length) winGroups.push({ urls, incognito: win.incognito === true });
+    });
+    if (!winGroups.length) return;
+    for (const { urls, incognito } of winGroups) {
+      await browser.windows.create({ url: urls, incognito });
+    }
     clearSelection();
-    toast(`Opened ${urls.length} tab${urls.length !== 1 ? "s" : ""} in new window`);
+    const wc = winGroups.length;
+    toast(`Opened selection in ${wc} new window${wc !== 1 ? "s" : ""}`);
   }
 
   async function openInCurrentWindow() {
-    const urls = getSelectedUrls();
+    if (!session) return;
+    const urls: string[] = [];
+    session.windows.forEach((win, wi) => {
+      [...win.tabs].sort((a, b) => a.index - b.index).forEach((tab, ti) => {
+        if (selectedTabKeys.has(`${wi}:${ti}`)) {
+          const u = safeUrl(tab);
+          if (u) urls.push(u);
+        }
+      });
+    });
     if (!urls.length) return;
     for (const url of urls) {
       await browser.tabs.create({ url });
