@@ -1,4 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
-  <rect width="16" height="16" rx="3" fill="#1a73e8"/>
-  <text x="8" y="12" font-family="Arial,sans-serif" font-size="11" font-weight="bold" fill="white" text-anchor="middle">S</text>
+  <!-- Background -->
+  <rect width="16" height="16" rx="3" fill="#1d4ed8"/>
+  <!-- Back card hint -->
+  <rect x="6" y="3" width="9" height="7" rx="1" fill="white" fill-opacity="0.3"/>
+  <!-- Middle card hint -->
+  <rect x="4" y="5" width="9" height="7" rx="1" fill="white" fill-opacity="0.5"/>
+  <!-- Front browser card -->
+  <rect x="2" y="7" width="9" height="7" rx="1" fill="white"/>
+  <!-- Tab notch -->
+  <rect x="2" y="5" width="4" height="3" rx="1" fill="white"/>
 </svg>
