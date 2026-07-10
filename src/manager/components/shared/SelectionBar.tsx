@@ -66,13 +66,10 @@ export function SelectionBar({ onLoadSessions, onRefreshCurrent }: Props) {
   }
 
   async function copyUrls() {
-    if (!session) return;
-    const urls: string[] = [];
-    session.windows.forEach((win, wi) => {
-      [...win.tabs].sort((a, b) => a.index - b.index).forEach((tab, ti) => {
-        if (selectedTabKeys.has(`${wi}:${ti}`)) urls.push(tab.url);
-      });
-    });
+    const urls = state.tabRenderOrder
+      .filter(r => selectedTabKeys.has(r.key) && r.tab.url)
+      .map(r => r.tab.url);
+    if (!urls.length) return;
     await navigator.clipboard.writeText(urls.join("\n"));
     toast("URLs copied");
     clearSelection();
