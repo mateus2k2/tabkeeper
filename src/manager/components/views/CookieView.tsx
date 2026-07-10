@@ -216,9 +216,23 @@ export function CookieView() {
   const prevLiveRef = useRef<SessionWindow[]>([]);
 
   const fetchLiveWins = useCallback(async (): Promise<SessionWindow[]> => {
-    if (typeof browser.windows === "undefined") return [];
-    const allWins = await browser.windows.getAll({ populate: true });
-    return (allWins as browser.windows.Window[]).filter(w => w.incognito).map(mapBrowserWindow);
+    if (typeof browser.windows !== "undefined") {
+      const allWins = await browser.windows.getAll({ populate: true });
+      return (allWins as browser.windows.Window[]).filter(w => w.incognito).map(mapBrowserWindow);
+    }
+    // Firefox for Android has no windows API — private tabs live in the same
+    // window as normal tabs, distinguished only by tab.incognito.
+    const allTabs = await browser.tabs.query({});
+    const privateTabs = allTabs.filter(t => t.incognito);
+    if (privateTabs.length === 0) return [];
+    const byWindow = new Map<number, browser.tabs.Tab[]>();
+    for (const t of privateTabs) {
+      const list = byWindow.get(t.windowId);
+      if (list) list.push(t); else byWindow.set(t.windowId, [t]);
+    }
+    return [...byWindow.entries()].map(([windowId, tabs]) =>
+      mapBrowserWindow({ id: windowId, tabs } as browser.windows.Window)
+    );
   }, []);
 
   // Initial load — sets everything including editableWins
