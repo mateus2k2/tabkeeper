@@ -1,12 +1,18 @@
 import { safeFilename } from "./helpers";
 import type { Session } from "../context/types";
 
-async function downloadFileSaveAs(filename: string, content: string, mimeType: string): Promise<void> {
+// Firefox for Android has no windows API, and its downloads API doesn't support
+// saveAs (the call rejects) — the <a download> blob fallback is also a no-op on
+// GeckoView, so Android must go straight to the Downloads folder instead.
+const ANDROID_MODE = typeof browser.windows === "undefined";
+
+export async function downloadFileSaveAs(filename: string, content: string, mimeType: string): Promise<void> {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   try {
-    // Try the downloads API first (shows a Save As dialog)
-    await browser.downloads.download({ url, filename, saveAs: true });
+    // Try the downloads API first (shows a Save As dialog on desktop; saves
+    // directly to the Downloads folder on Android, where saveAs isn't supported)
+    await browser.downloads.download(ANDROID_MODE ? { url, filename } : { url, filename, saveAs: true });
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   } catch (err) {
     // Only fall back to <a> click if the API itself is unavailable (not when user cancels)

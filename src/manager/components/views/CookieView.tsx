@@ -2,9 +2,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useApp } from "../../context/AppContext";
 import { send } from "../../utils/messaging";
 import { deepClone, genId } from "../../utils/helpers";
+import { downloadFileSaveAs } from "../../utils/download";
 import type { Window as SessionWindow } from "../../context/types";
 
 const PRIVATE_STORE = "firefox-private";
+// Firefox for Android has no windows API and exposes a single cookie store
+// ("firefox-default") — there's no separate "firefox-private" store to filter by there.
+const ANDROID_MODE = typeof browser.windows === "undefined";
 
 interface BrowserCookie {
   name: string;
@@ -25,8 +29,9 @@ function cookieUrl(c: BrowserCookie) {
 }
 
 async function getPrivateCookies(): Promise<BrowserCookie[]> {
-  try { return await browser.cookies.getAll({ storeId: PRIVATE_STORE }) as BrowserCookie[]; }
-  catch { return []; }
+  try {
+    return await browser.cookies.getAll(ANDROID_MODE ? {} : { storeId: PRIVATE_STORE }) as BrowserCookie[];
+  } catch { return []; }
 }
 
 async function removeCookie(c: BrowserCookie) {
@@ -343,17 +348,7 @@ export function CookieView() {
         .flatMap(w => w.tabs.map(t => t.url))
         .filter((url): url is string => !!url);
     }
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    try {
-      await browser.downloads.download({ url, filename: "private-cookies.json", saveAs: true });
-    } catch {
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "private-cookies.json";
-      a.click();
-    }
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    await downloadFileSaveAs("private-cookies.json", JSON.stringify(payload, null, 2), "application/json");
   }
 
   // ─── Cookie management ────────────────────────────────────────────────────
@@ -392,7 +387,7 @@ export function CookieView() {
 
     let ok = 0, fail = 0;
     for (const raw of list) {
-      const c = { ...raw, storeId: PRIVATE_STORE } as BrowserCookie;
+      const c = { ...raw, storeId: ANDROID_MODE ? undefined : PRIVATE_STORE } as BrowserCookie;
       delete (c as Record<string, unknown>).hostOnly;
       delete (c as Record<string, unknown>).session;
       if (c.sameSite === "unspecified") c.sameSite = "no_restriction";
@@ -481,6 +476,14 @@ export function CookieView() {
         <div className="content-header-buttons" />
       </div>
 
+      <input
+        type="file"
+        ref={fileRef}
+        accept=".json,application/json"
+        style={{ display: "none" }}
+        onChange={e => { const f = e.target.files?.[0]; if (f) void handleImport(f); e.target.value = ""; }}
+      />
+
       <div className="content-area">
         {loading ? (
           <div className="empty-state"><p>Loading…</p></div>
@@ -525,14 +528,6 @@ export function CookieView() {
                 {" "}Include tabs
               </label>
             </div>
-
-            <input
-              type="file"
-              ref={fileRef}
-              accept=".json,application/json"
-              style={{ display: "none" }}
-              onChange={e => { const f = e.target.files?.[0]; if (f) void handleImport(f); e.target.value = ""; }}
-            />
 
             {!privOpen ? (
               <div className="cookie-info">
