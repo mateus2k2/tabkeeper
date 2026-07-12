@@ -6,9 +6,6 @@ import { downloadFileSaveAs } from "../../utils/download";
 import type { Window as SessionWindow } from "../../context/types";
 
 const PRIVATE_STORE = "firefox-private";
-// Firefox for Android has no windows API and exposes a single cookie store
-// ("firefox-default") — there's no separate "firefox-private" store to filter by there.
-const ANDROID_MODE = typeof browser.windows === "undefined";
 
 interface BrowserCookie {
   name: string;
@@ -30,7 +27,7 @@ function cookieUrl(c: BrowserCookie) {
 
 async function getPrivateCookies(): Promise<BrowserCookie[]> {
   try {
-    return await browser.cookies.getAll(ANDROID_MODE ? {} : { storeId: PRIVATE_STORE }) as BrowserCookie[];
+    return await browser.cookies.getAll({ storeId: PRIVATE_STORE }) as BrowserCookie[];
   } catch { return []; }
 }
 
@@ -341,8 +338,8 @@ export function CookieView() {
   // ─── Export using editable state ─────────────────────────────────────────
 
   async function handleExport() {
-    const cookies = await getPrivateCookies();
-    const payload: Record<string, unknown> = { cookies };
+    const freshCookies = await getPrivateCookies();
+    const payload: Record<string, unknown> = { cookies: freshCookies };
     if (includeTabs) {
       payload.tabs = editableWins
         .flatMap(w => w.tabs.map(t => t.url))
@@ -387,32 +384,66 @@ export function CookieView() {
 
     let ok = 0, fail = 0;
     for (const raw of list) {
-      const c = { ...raw, storeId: ANDROID_MODE ? undefined : PRIVATE_STORE } as BrowserCookie;
+      const c = { ...raw, storeId: PRIVATE_STORE } as BrowserCookie;
       delete (c as Record<string, unknown>).hostOnly;
       delete (c as Record<string, unknown>).session;
-      if (c.sameSite === "unspecified") c.sameSite = "no_restriction";
+      // cookies.getAll() reports partitionKey: null for non-partitioned cookies, but
+      // cookies.set() rejects a literal null (it wants a real object or nothing at all).
+      delete (c as Record<string, unknown>).partitionKey;
+      // "unspecified" means the cookie had no explicit SameSite attribute, which browsers
+      // treat as Lax by default — NOT None. Mapping it to "no_restriction" (None) instead
+      // forces a Secure requirement the original cookie may not meet, and set() then rejects it.
+      if (c.sameSite === "unspecified") c.sameSite = "lax";
       try {
         await browser.cookies.set({ url: cookieUrl(c), ...c });
         ok++;
       } catch { fail++; }
     }
 
-    if (data.tabs && Array.isArray(data.tabs) && data.tabs.length > 0 && typeof browser.windows !== "undefined") {
-      try {
-        const allWindows = await browser.windows.getAll();
-        const existing = allWindows.find(w => w.incognito);
-        const windowId = existing
-          ? existing.id!
-          : (await browser.windows.create({ incognito: true })).id!;
-        for (const url of data.tabs as string[]) {
-          await browser.tabs.create({ windowId, url });
+    let tabMsg = "";
+    if (data.tabs && Array.isArray(data.tabs) && data.tabs.length > 0) {
+      const urls = data.tabs as string[];
+      if (typeof browser.windows !== "undefined") {
+        try {
+          const allWindows = await browser.windows.getAll();
+          const existing = allWindows.find(w => w.incognito);
+          const windowId = existing
+            ? existing.id!
+            : (await browser.windows.create({ incognito: true })).id!;
+          for (const url of urls) {
+            await browser.tabs.create({ windowId, url });
+          }
+          tabMsg = `, ${urls.length} tab${urls.length !== 1 ? "s" : ""} restored`;
+        } catch (e) {
+          console.warn("[tabkeeper] Could not restore private tabs", e);
         }
-      } catch (e) {
-        console.warn("[tabkeeper] Could not restore private tabs", e);
+      } else {
+        // Android has no API to create a private window/tab directly. Tabs opened
+        // with openerTabId pointing at a private tab inherit its incognito state, so
+        // this only works if some private tab is already open somewhere — checking the
+        // "active" tab doesn't work here, since the manager page itself is the active
+        // tab while the user is interacting with it, and that's never private.
+        try {
+          const allTabs = await browser.tabs.query({});
+          const privateTab = allTabs
+            .filter(t => t.incognito)
+            .sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
+          if (privateTab) {
+            for (const url of urls) {
+              await browser.tabs.create({ url, openerTabId: privateTab.id });
+            }
+            tabMsg = `, ${urls.length} tab${urls.length !== 1 ? "s" : ""} restored`;
+          } else {
+            tabMsg = ", tabs skipped (open a private tab first)";
+          }
+        } catch (e) {
+          console.warn("[tabkeeper] Could not restore private tabs", e);
+          tabMsg = ", tab restore failed";
+        }
       }
     }
 
-    toast(`Restored ${ok} cookie${ok !== 1 ? "s" : ""}${fail ? `, ${fail} failed` : ""}`);
+    toast(`Restored ${ok} cookie${ok !== 1 ? "s" : ""}${fail ? `, ${fail} failed` : ""}${tabMsg}`);
     void fetchData();
   }
 

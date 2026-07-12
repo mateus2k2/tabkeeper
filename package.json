@@ -1,6 +1,6 @@
 {
   "name": "tabkeeper",
-  "version": "2.7.5",
+  "version": "2.7.7",
   "private": true,
   "scripts": {
     "dev": "vite build --watch",

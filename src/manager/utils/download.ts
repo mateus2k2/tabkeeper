@@ -1,32 +1,65 @@
 import { safeFilename } from "./helpers";
 import type { Session } from "../context/types";
 
-// Firefox for Android has no windows API, and its downloads API doesn't support
-// saveAs (the call rejects) — the <a download> blob fallback is also a no-op on
-// GeckoView, so Android must go straight to the Downloads folder instead.
+// Firefox for Android has no windows API. Its downloads API also flatly rejects
+// blob:/data: URLs ("Access denied") and has no saveAs support — confirmed by testing —
+// so the only thing that actually works there is a direct <a download> click, which
+// saves straight to the Downloads folder (Android has no per-download picker to show).
 const ANDROID_MODE = typeof browser.windows === "undefined";
 
+function toBase64Utf8(str: string): string {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
+function clickDownload(url: string, filename: string, revoke: () => void): void {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(revoke, 60_000);
+}
+
+// Tries Android's native share sheet (Files, Drive, email, etc. — the closest thing
+// to a "choose where to save" picker reachable from a WebExtension page there).
+// Returns true if handled (shared, or the user cancelled the sheet), false if the
+// API isn't usable here and the caller should fall back to a direct download.
+async function tryShareFile(filename: string, content: string, mimeType: string): Promise<boolean> {
+  if (typeof navigator.share !== "function" || typeof navigator.canShare !== "function") return false;
+  try {
+    const file = new File([content], filename, { type: mimeType });
+    if (!navigator.canShare({ files: [file] })) return false;
+    await navigator.share({ files: [file] });
+    return true;
+  } catch (err) {
+    // AbortError means the user dismissed the share sheet themselves — respect that
+    // instead of silently forcing a download behind their back.
+    return err instanceof Error && err.name === "AbortError";
+  }
+}
+
 export async function downloadFileSaveAs(filename: string, content: string, mimeType: string): Promise<void> {
+  if (ANDROID_MODE) {
+    if (await tryShareFile(filename, content, mimeType)) return;
+    const url = `data:${mimeType};base64,${toBase64Utf8(content)}`;
+    clickDownload(url, filename, () => {});
+    return;
+  }
+
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   try {
-    // Try the downloads API first (shows a Save As dialog on desktop; saves
-    // directly to the Downloads folder on Android, where saveAs isn't supported)
-    await browser.downloads.download(ANDROID_MODE ? { url, filename } : { url, filename, saveAs: true });
+    // Try the downloads API first (shows a Save As dialog)
+    await browser.downloads.download({ url, filename, saveAs: true });
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   } catch (err) {
     // Only fall back to <a> click if the API itself is unavailable (not when user cancels)
     const msg = err instanceof Error ? err.message : String(err);
     const isCancelled = /cancel/i.test(msg) || /user/i.test(msg);
     if (isCancelled) { URL.revokeObjectURL(url); return; }
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.style.display = "none";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    clickDownload(url, filename, () => URL.revokeObjectURL(url));
   }
 }
 
